@@ -91,4 +91,27 @@ TEST_CASE("integerSqrt vs float sqrt over 1000 samples", "[!benchmark]")
             return sum;
         });
     };
+
+    // Bit-by-bit integer sqrt used only for compile-time table generation.
+    BENCHMARK_ADVANCED("detail::constexprSqrt x1000")(Catch::Benchmark::Chronometer meter)
+    {
+        volatile std::uint64_t warmup_sink = 0;
+        for (int i = 0; i < warmup_count; ++i)
+        {
+            warmup_sink = detail::constexprSqrt(
+                static_cast<std::uint64_t>(values[static_cast<std::size_t>(i)]));
+        }
+        (void)warmup_sink;
+
+        meter.measure([&]
+        {
+            std::uint64_t sum = 0;
+            for (int i = 0; i < sample_count; ++i)
+            {
+                sum += detail::constexprSqrt(
+                    static_cast<std::uint64_t>(values[static_cast<std::size_t>(i)]));
+            }
+            return sum;
+        });
+    };
 }
