@@ -87,19 +87,14 @@ constexpr std::array<std::uint16_t, SQRT_TABLE_SIZE> makeSqrtTable() noexcept
 {
     std::array<std::uint16_t, SQRT_TABLE_SIZE> table{};
 
-    constexpr std::uint64_t NUMERATOR =
-        std::uint64_t{1} << 42;
+    constexpr std::uint64_t NUMERATOR = std::uint64_t{1} << 42;
 
     for (std::uint32_t i = 0; i < SQRT_TABLE_SIZE; ++i)
     {
         const std::uint32_t k = i + 512;
-
-        const std::uint64_t denominator =
-            2ull * k + 1ull;
-
-        table[i] =
-            static_cast<std::uint16_t>(
-                constexprSqrt(NUMERATOR / denominator));
+        const std::uint64_t denominator = 2ull * k + 1ull;
+        table[i] = static_cast<std::uint16_t>(
+            constexprSqrt(NUMERATOR / denominator));
     }
 
     return table;
@@ -122,20 +117,17 @@ inline IntSqrtResult integerSqrt(int input) noexcept
         return { 0, input };
     }
 
-    const std::uint32_t n =
-        static_cast<std::uint32_t>(input);
+    const std::uint32_t n = static_cast<std::uint32_t>(input);
 
     //
     // e = floor(log2(n))
     //
-    const unsigned e =
-        31u - std::countl_zero(n);
+    const unsigned e = 31u - std::countl_zero(n);
 
     //
     // Force exponent even.
     //
-    const unsigned e_even =
-        e & ~1u;
+    const unsigned e_even = e & ~1u;
 
     //
     // Normalize into Q30:
@@ -146,44 +138,53 @@ inline IntSqrtResult integerSqrt(int input) noexcept
     //
     //     1 <= x < 4.
     //
-    const std::uint64_t x_q30 =
-        static_cast<std::uint64_t>(n)
-        << (30u - e_even);
+    const std::uint64_t x_q30 = static_cast<std::uint64_t>(n) << (30u - e_even);
 
     //
-    // Bin number:
+    // Remove the implicit 1.0.
     //
-    //     k = floor(x * 512)
+    // y represents x - 1 in Q30:
     //
-    // Since x_q30 has 30 fractional bits:
+    //     0 <= y < 3 * 2^30
     //
-    //     k = x_q30 >> 21
-    //
-    // giving k in [512,2047].
-    //
-    const std::uint32_t k =
-        static_cast<std::uint32_t>(x_q30 >> 21);
+    const std::uint64_t y = x_q30 - (1ull << 30);
 
     //
-    // Compact LUT.
+    // Bin number / zero-based LUT index:
     //
-    // On x86 this subtraction can normally disappear into the
-    // displacement/address calculation for the load.
+    // 1536 bins across [1,4), each of width 1/512.
     //
-    const std::uint64_t c =
-        detail::SQRT_TABLE[k - 512];
+    //     k = floor(y * 512) = floor((x - 1) * 512)
+    //
+    // so:
+    //
+    //     0 <= k <= 1535
+    //
+    // and the corresponding absolute bin used in the table
+    // formulas is K = k + 512 (with 512 <= K <= 2047).
+    //
+    const std::uint32_t k = static_cast<std::uint32_t>(y >> 21);
 
     //
-    // Centre of bin k:
+    // C ~= 2^16 / sqrt(a), looked up by zero-based index k.
     //
-    //     a = (2k+1)/1024
+    const std::uint64_t c = detail::SQRT_TABLE[k];
+
     //
-    // represented in Q30:
+    // Centre of absolute bin K = k + 512:
     //
-    //     a_q30 = (2k+1) << 20.
+    //     a = (2K + 1) / 1024
+    //       = (2k + 1025) / 1024
     //
-    const std::uint64_t a_q30 =
-        (2ull * k + 1ull) << 20;
+    // The tangent numerator is x + a in Q30.  Expanding and
+    // rewriting in terms of y and k gives the equivalent form:
+    //
+    //     x_q30 + a_q30
+    //       = y + (k << 21) + 0x80100000
+    //
+    // where 0x80100000 = 2^31 + 2^20.
+    //
+    const std::uint64_t numerator = y + (static_cast<std::uint64_t>(k) << 21) + 0x80100000ull;
 
     //
     // Tangent approximation:
@@ -194,12 +195,8 @@ inline IntSqrtResult integerSqrt(int input) noexcept
     //
     // C ~= 2^16 / sqrt(a).
     //
-    const unsigned shift =
-        47u - (e_even >> 1);
-
-    std::uint32_t p =
-        static_cast<std::uint32_t>(
-            ((x_q30 + a_q30) * c) >> shift);
+    const unsigned shift = 47u - (e_even >> 1);
+    std::uint32_t p = static_cast<std::uint32_t>((numerator * c) >> shift);
 
     //
     // The LUT approximation is within one integer of the exact
@@ -223,8 +220,7 @@ inline IntSqrtResult integerSqrt(int input) noexcept
         //
         //     (p+1)^2 = p^2 + 2p + 1.
         //
-        const std::uint32_t delta =
-            2u * p + 1u;
+        const std::uint32_t delta = 2u * p + 1u;
 
         if (n - square >= delta)
         {
