@@ -88,7 +88,7 @@ build\Release\perf.exe
 ./build/perf
 ```
 
-Run `perf` in **Release** for meaningful timings. It selects the `[!benchmark]` tag by default.
+Run `perf` in **Release** for meaningful timings. It uses a small `std::chrono` harness (no Catch2).
 
 Unit tests use [Catch2](https://github.com/catchorg/Catch2), fetched by CMake at configure time (not checked into this repo). First configure needs network access. You can also run:
 

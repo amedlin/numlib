@@ -37,7 +37,7 @@ add_executable(test_isqrt testing/test_isqrt.cpp)
 target_link_libraries(test_isqrt PRIVATE numlib Catch2::Catch2WithMain)
 
 add_executable(perf testing/perf.cpp)
-target_link_libraries(perf PRIVATE numlib Catch2::Catch2)
+target_link_libraries(perf PRIVATE numlib)
 
 function(numlib_set_warnings target)
     target_compile_options(${target} PRIVATE

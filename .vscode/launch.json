@@ -13,8 +13,7 @@
       "type": "cmake",
       "request": "launch",
       "cmakeDebugType": "debug",
-      "target": "perf",
-      "args": ["[!benchmark]"]
+      "target": "perf"
     }
   ]
 }
