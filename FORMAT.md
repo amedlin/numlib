@@ -17,6 +17,8 @@ Do not use `snake_case` or `SCREAMING_SNAKE_CASE` for namespaces or functions.
 
 - Indent with 4 spaces; do not use tabs.
 - Use Allman braces: opening `{` on its own line for functions, types, namespaces, and control statements.
+- Column limit is 120. Do not wrap a line until it would exceed 120 characters.
+- Keep the right-hand side of an assignment on the same line as `=`; do not break immediately after `=`.
 - Prefer `const` and `constexpr` where values do not change.
 - Prefer `[[nodiscard]]` on functions whose return value must not be ignored.
 - Prefer `noexcept` on non-throwing functions.

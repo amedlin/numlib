@@ -1,0 +1,23 @@
+BasedOnStyle: LLVM
+Language: Cpp
+
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+
+BreakBeforeBraces: Allman
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Prefer keeping assignment RHS on the same line as '=' when within the column limit.
+PenaltyBreakAssignment: 1000
+PenaltyExcessCharacter: 50
+
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+SpaceAfterCStyleCast: false
+SpaceBeforeCpp11BracedList: false
+SpacesInAngles: false
+Standard: c++20
