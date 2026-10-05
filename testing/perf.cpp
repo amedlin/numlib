@@ -42,21 +42,21 @@ TEST_CASE("integerSqrt vs float sqrt over 1000 samples", "[!benchmark]")
         std::numeric_limits<std::int32_t>::max()};
 
     std::vector<std::int32_t> values(static_cast<std::size_t>(sample_count));
-    std::vector<float> floats(static_cast<std::size_t>(sample_count));
 
     for (int i = 0; i < sample_count; ++i)
     {
         values[static_cast<std::size_t>(i)] = dist(rng);
-        floats[static_cast<std::size_t>(i)] =
-            static_cast<float>(values[static_cast<std::size_t>(i)]);
     }
 
-    BENCHMARK_ADVANCED("float std::sqrt x1000")(Catch::Benchmark::Chronometer meter)
+    // Float path includes int->float conversion: inputs are integers in the
+    // realistic comparison against integerSqrt.
+    BENCHMARK_ADVANCED("int-to-float + std::sqrt x1000")(Catch::Benchmark::Chronometer meter)
     {
         volatile float warmup_sink = 0.0f;
         for (int i = 0; i < warmup_count; ++i)
         {
-            warmup_sink = std::sqrt(floats[static_cast<std::size_t>(i)]);
+            warmup_sink = std::sqrt(
+                static_cast<float>(values[static_cast<std::size_t>(i)]));
         }
         (void)warmup_sink;
 
@@ -65,7 +65,8 @@ TEST_CASE("integerSqrt vs float sqrt over 1000 samples", "[!benchmark]")
             float sum = 0.0f;
             for (int i = 0; i < sample_count; ++i)
             {
-                sum += std::sqrt(floats[static_cast<std::size_t>(i)]);
+                sum += std::sqrt(
+                    static_cast<float>(values[static_cast<std::size_t>(i)]));
             }
             return sum;
         });
