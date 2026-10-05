@@ -1,0 +1,16 @@
+{
+  "cmake.useCMakePresets": "always",
+  "cmake.configureOnOpen": true,
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "C_Cpp.clang_format_style": "file",
+  "editor.rulers": [120],
+  "editor.wordWrap": "off",
+  "[cpp]": {
+    "editor.rulers": [120],
+    "editor.wordWrap": "off"
+  },
+  "[c]": {
+    "editor.rulers": [120],
+    "editor.wordWrap": "off"
+  }
+}
