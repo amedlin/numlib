@@ -63,8 +63,7 @@ vcpkg_installed/
 # debug information files
 *.dwo
 
-# test output & cache
-Testing/
+# cache
 .cache/
 
 /*.code-workspace

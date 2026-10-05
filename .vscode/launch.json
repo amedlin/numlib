@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug test_isqrt",
+      "type": "cmake",
+      "request": "launch",
+      "cmakeDebugType": "debug",
+      "target": "test_isqrt"
+    },
+    {
+      "name": "Debug perf",
+      "type": "cmake",
+      "request": "launch",
+      "cmakeDebugType": "debug",
+      "target": "perf"
+    }
+  ]
+}
