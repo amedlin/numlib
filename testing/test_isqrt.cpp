@@ -49,7 +49,7 @@ TEST_CASE("integerSqrt is exact for random 32-bit inputs")
     }
 }
 
-TEST_CASE("integerSqrt is exact for all non-negative int32_t values")
+TEST_CASE("integerSqrt is exact for all non-negative int32_t values", "[.exhaustive]")
 {
     constexpr std::int32_t max_n = std::numeric_limits<std::int32_t>::max();
 

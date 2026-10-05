@@ -44,4 +44,4 @@ numlib_set_warnings(perf)
 
 enable_testing()
 include(Catch)
-catch_discover_tests(test_isqrt)
+catch_discover_tests(test_isqrt TEST_SPEC "~[.exhaustive]")
