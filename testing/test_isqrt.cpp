@@ -48,3 +48,31 @@ TEST_CASE("integerSqrt is exact for random 32-bit inputs")
         REQUIRE((p + 1) * (p + 1) > n);
     }
 }
+
+TEST_CASE("integerSqrt is exact for all non-negative int32_t values")
+{
+    constexpr std::int32_t max_n = std::numeric_limits<std::int32_t>::max();
+
+    // 16 passes with stride 16 and distinct offsets cover every value, while
+    // each pass still walks from small to large.
+    for (int offset = 0; offset < 16; ++offset)
+    {
+        for (std::int64_t n64 = offset; n64 <= max_n; n64 += 16)
+        {
+            const int n = static_cast<int>(n64);
+            const IntSqrtResult result = integerSqrt(n);
+
+            const std::int64_t p = result.p_;
+            const std::int64_t q = result.q_;
+
+            // Avoid Catch2 assertion overhead across ~2^31 iterations; use
+            // int64 squares so (p+1)^2 does not overflow near INT_MAX.
+            if (p < 0 || q < 0 || p * p + q != n64 || (p + 1) * (p + 1) <= n64)
+            {
+                FAIL("integerSqrt(" << n << ") => p=" << p << " q=" << q);
+            }
+        }
+    }
+    // Message that all non-negative int32_t values were exhaustively tested
+    SUCCEED("All non-negative int32_t values were exhaustively tested");
+}

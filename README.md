@@ -65,23 +65,30 @@ sudo dnf install -y cmake gcc-c++ ninja-build
 From the repo root, on any OS:
 
 ```bash
-cmake --preset default
-cmake --build --preset default
+# Debug
+cmake --preset debug
+cmake --build --preset debug
+
+# Release
+cmake --preset release
+cmake --build --preset release
 ```
+
+`default` is an untyped configure preset; prefer `debug` or `release`. Build presets pass the matching configuration for multi-config generators (for example Visual Studio).
 
 Run the binaries from `build/`:
 
 ```bash
-# Windows
-build\test_isqrt.exe
-build\perf.exe
+# Windows (multi-config)
+build\Debug\test_isqrt.exe
+build\Release\perf.exe
 
-# macOS / Linux
+# macOS / Linux (single-config; tree matches the preset you configured)
 ./build/test_isqrt
 ./build/perf
 ```
 
-If your generator is multi-config (for example Visual Studio), binaries may be under `build/Debug/` or `build/Release/` instead.
+Run `perf` in **Release** for meaningful timings. It selects the `[!benchmark]` tag by default.
 
 Unit tests use [Catch2](https://github.com/catchorg/Catch2), fetched by CMake at configure time (not checked into this repo). First configure needs network access. You can also run:
 
