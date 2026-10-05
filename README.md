@@ -83,6 +83,12 @@ build\perf.exe
 
 If your generator is multi-config (for example Visual Studio), binaries may be under `build/Debug/` or `build/Release/` instead.
 
+Unit tests use [Catch2](https://github.com/catchorg/Catch2), fetched by CMake at configure time (not checked into this repo). First configure needs network access. You can also run:
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
 ## Use the library in your own code
 
 `numlib` is a **static** library. Prefer consuming it with CMake:
