@@ -25,6 +25,14 @@ target_include_directories(numlib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# integerSqrt is inline in a header, so dependents must see the same ISA.
+# MSVC /arch:AVX2 also enables BMI2 (lzcnt, shlx, shrx). Clang-cl sets MSVC.
+if(MSVC)
+    target_compile_options(numlib PUBLIC /arch:AVX2)
+else()
+    target_compile_options(numlib PUBLIC -mavx2)
+endif()
+
 add_executable(test_isqrt testing/test_isqrt.cpp)
 target_link_libraries(test_isqrt PRIVATE numlib Catch2::Catch2WithMain)
 

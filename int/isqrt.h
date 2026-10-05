@@ -210,7 +210,6 @@ inline IntSqrtResult integerSqrt(int input) noexcept
         // p is one too large.
         //
         --p;
-
         square -= 2u * p + 1u;
     }
     else
@@ -220,13 +219,15 @@ inline IntSqrtResult integerSqrt(int input) noexcept
         //
         //     (p+1)^2 = p^2 + 2p + 1.
         //
+        // step is 0 when p is already correct, and all-ones when p must
+        // increase by one. p -= step then increments p, and delta & step
+        // adds delta to the square.
+        //
         const std::uint32_t delta = 2u * p + 1u;
+        const std::uint32_t step = 0u - static_cast<std::uint32_t>((n - square) >= delta);
 
-        if (n - square >= delta)
-        {
-            square += delta;
-            ++p;
-        }
+        p -= step;
+        square += delta & step;
     }
 
     return
