@@ -6,6 +6,10 @@
 
 static_assert(sizeof(int) == 4, "integerSqrt requires 32-bit int");
 
+/// Result of an exact 32-bit integer square-root calculation.
+///
+/// For positive input n, p_ is floor(sqrt(n)) and q_ is the remainder such
+/// that n == p_ * p_ + q_.
 struct IntSqrtResult
 {
     std::int32_t p_;
@@ -109,6 +113,10 @@ static_assert(sizeof(SQRT_TABLE) == 3072);
 } // namespace detail
 
 
+/// Calculates the exact floor square root and remainder of a signed 32-bit integer.
+///
+/// Positive input n returns {p, q}, where p = floor(sqrt(n)) and
+/// n = p * p + q. Zero returns {0, 0}; negative input returns {0, input}.
 [[nodiscard]]
 inline IntSqrtResult integerSqrt(int input) noexcept
 {

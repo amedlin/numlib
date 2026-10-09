@@ -1,6 +1,45 @@
-# numlib
+# numlib — fixed-point arithmetic and integer square root for C++20
 
-High-performance numerical algorithms library (C++20).
+[![CI](https://github.com/amedlin/numlib/actions/workflows/ci.yml/badge.svg)](https://github.com/amedlin/numlib/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C.svg)](https://en.cppreference.com/w/cpp/20)
+
+numlib is a small C++20 numerical library for binary fixed-point arithmetic
+and fast, exact 32-bit integer square roots. It provides generic
+`Fixed<P, Rep>` values, ready-to-use Q8.24, Q16.16, and Q24.8 types,
+fixed-point math functions, and an integer square-root result with its exact
+remainder.
+
+## Features
+
+- Signed `Fixed<P, Rep>` arithmetic with compile-time fractional precision
+- 16-bit and 32-bit storage, plus 64-bit storage on compilers with `__int128`
+- Q8.24 (`FixedF`), Q16.16 (`Fixed16`), and Q24.8 (`FixedI`) aliases
+- Conversion, mixed-precision multiplication and division, square root,
+  inverse square root, rounding, sine, cosine, and exponential approximation
+- Exact `floor(sqrt(n))` for 32-bit signed integers, with remainder
+- `constexpr` support for core fixed-point operations
+- CMake targets for subdirectory and installed-package use
+- Tested with MSVC, Clang, and GCC; requires an AVX2-capable target
+
+Read the focused guides for [fixed-point arithmetic](docs/fixed-point.md) and
+[integer square root](docs/integer-square-root.md).
+
+## Quick example
+
+```cpp
+#include "fixedpt/fixed_types.h"
+#include "int/isqrt.h"
+
+Fixed16 price{12.5};
+Fixed16 quantity{4};
+Fixed16 total = price * quantity;
+
+const IntSqrtResult root = integerSqrt(27);
+// root.p_ == 5 and root.q_ == 2 because 27 == 5 * 5 + 2.
+```
+
+numlib is available under the [MIT License](LICENSE).
 
 ## What you need
 
@@ -104,10 +143,21 @@ ctest --test-dir build --output-on-failure
 
 ```cmake
 add_subdirectory(path/to/numlib)
-target_link_libraries(your_target PRIVATE numlib)
+target_link_libraries(your_target PRIVATE numlib::numlib)
 ```
 
-In your sources (C++20):
+You can also install numlib and consume its CMake package:
+
+```bash
+cmake --install build --config Release --prefix path/to/install
+```
+
+```cmake
+find_package(numlib CONFIG REQUIRED)
+target_link_libraries(your_target PRIVATE numlib::numlib)
+```
+
+In your C++20 sources:
 
 ```cpp
 #include "int/isqrt.h"
