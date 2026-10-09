@@ -193,24 +193,26 @@ constexpr std::array<std::uint32_t, SQRT_TABLE_SIZE> makeSqrtTable32() noexcept
 {
     std::array<std::uint32_t, SQRT_TABLE_SIZE> table{};
 
+    // C = floor(2^37 / sqrt(d)), d = 2K+1, same centres as the 16-bit table.
+    // Compute via floor(sqrt(2^62/d)) << 6 (= floor(2^31/sqrt(d))*64), then
+    // a short nudge so constexpr evaluation stays under Clang's step limit
+    // (full uint32 binary search does not).
     for (std::uint32_t i = 0; i < SQRT_TABLE_SIZE; ++i)
     {
         const std::uint64_t d = 2ull * (i + 512u) + 1ull;
-        std::uint32_t lo = 1u;
-        std::uint32_t hi = 0xffffffffu;
-        while (lo < hi)
+        const std::uint64_t s = constexprSqrt((std::uint64_t{1} << 62) / d);
+        std::uint32_t c = static_cast<std::uint32_t>(s << 6);
+
+        while (c > 0u && !sqrtTable32EntryOk(c, d))
         {
-            const std::uint32_t mid = lo + ((hi - lo + 1u) >> 1);
-            if (sqrtTable32EntryOk(mid, d))
-            {
-                lo = mid;
-            }
-            else
-            {
-                hi = mid - 1u;
-            }
+            --c;
         }
-        table[i] = lo;
+        while (c < 0xffffffffu && sqrtTable32EntryOk(c + 1u, d))
+        {
+            ++c;
+        }
+
+        table[i] = c;
     }
 
     return table;
