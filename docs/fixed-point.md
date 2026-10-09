@@ -48,7 +48,9 @@ The fixed-point API supports:
 - conversion between fixed-point precisions with `convert`;
 - mixed-precision `mulAs` and `divAs` operations;
 - fused-style fixed-point multiply-add with `mulAdd`;
-- `sqrt`, `invSqrt`, `inverse`, `square`, and approximate variants;
+- `sqrt`, `invSqrt`, `inverse`, `square`, and approximate variants
+  (`Fixed<P, int32_t>::sqrt` uses a specialized LUT path via `integerSqrt`;
+  see [integer-square-root.md](integer-square-root.md));
 - `round`, `floor`, `ceil`, and power-of-two scaling;
 - `sin`, `cos`, and combined `sinCos`;
 - conversion to and from raw signed integer representations.

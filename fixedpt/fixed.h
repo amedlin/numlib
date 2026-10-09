@@ -8,6 +8,8 @@
 #include <limits>
 #include <type_traits>
 
+#include "int/isqrt.h"
+
 namespace detail
 {
 
@@ -678,17 +680,47 @@ constexpr Fixed<P, Rep> Fixed<P, Rep>::inverse() const noexcept
     return Fixed{Rep{1}} / (*this);
 }
 
+template <int P>
+[[nodiscard]]
+inline Fixed<P, std::int32_t> integerSqrt(Fixed<P, std::int32_t> value) noexcept;
+
 template <int P, detail::FixedRep Rep>
     requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
 constexpr Fixed<P, Rep> Fixed<P, Rep>::sqrt() const noexcept
 {
     assert(x_ >= 0);
-    Fixed result = fromRaw(static_cast<Rep>((x_ + (Rep{1} << PRECISION)) >> 1));
-    for (int i = 0; i < PRECISION; ++i)
+
+    if constexpr (std::is_same_v<Rep, std::int32_t>)
     {
-        result = fromRaw(static_cast<Rep>((result.x_ + ((*this) / result).x_) >> 1));
+        if (std::is_constant_evaluated())
+        {
+            const std::uint64_t n =
+                static_cast<std::uint64_t>(static_cast<std::uint32_t>(x_)) << P;
+            return fromRaw(static_cast<Rep>(detail::constexprSqrt(n)));
+        }
+
+        return integerSqrt(*this);
     }
-    return result;
+    else
+    {
+        Fixed result = fromRaw(static_cast<Rep>((x_ + (Rep{1} << PRECISION)) >> 1));
+        for (int i = 0; i < PRECISION; ++i)
+        {
+            result = fromRaw(static_cast<Rep>((result.x_ + ((*this) / result).x_) >> 1));
+        }
+        return result;
+    }
+}
+
+template <int P>
+    requires(P > 0 && P < 32)
+[[nodiscard]]
+inline Fixed<P, std::int32_t> integerSqrt(Fixed<P, std::int32_t> value) noexcept
+{
+    assert(value.getRawValue() >= 0);
+    const auto raw = static_cast<std::uint32_t>(value.getRawValue());
+    return Fixed<P, std::int32_t>::fromRaw(
+        static_cast<std::int32_t>(detail::floorSqrtFixedRaw<P>(raw)));
 }
 
 template <int P, detail::FixedRep Rep>

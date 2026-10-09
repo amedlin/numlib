@@ -37,6 +37,8 @@ Fixed16 total = price * quantity;
 
 const IntSqrtResult root = integerSqrt(27);
 // root.p_ == 5 and root.q_ == 2 because 27 == 5 * 5 + 2.
+const IntSqrt64Result root64 = integerSqrt(std::uint64_t{27});
+Fixed16 root_fixed = integerSqrt(Fixed16{27}); // same type in and out
 ```
 
 numlib is available under the [MIT License](LICENSE).

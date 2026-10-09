@@ -70,6 +70,20 @@ NUMLIB_NOINLINE std::uint64_t runConstexprSqrtBatch(
     return sum;
 }
 
+NUMLIB_NOINLINE std::uint64_t runUint64SqrtBatch(
+    const std::uint64_t* values,
+    std::size_t count) noexcept
+{
+    std::uint64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += integerSqrt(values[i]).p_;
+    }
+
+    return sum;
+}
+
 NUMLIB_NOINLINE float runFloatAddBatch(
     const float* a,
     const float* b,
@@ -343,7 +357,13 @@ int main()
     std::uniform_real_distribution<float> divisor_dist{0.5f, 25.0f};
     std::uniform_real_distribution<float> angle_dist{-8.0f, 8.0f};
 
+    std::mt19937_64 rng64{0xB441355Bull};
+    std::uniform_int_distribution<std::uint64_t> dist64{
+        0u,
+        std::numeric_limits<std::uint64_t>::max()};
+
     std::vector<std::int32_t> values(static_cast<std::size_t>(sample_count));
+    std::vector<std::uint64_t> values64(static_cast<std::size_t>(sample_count));
     std::vector<float> float_a(static_cast<std::size_t>(sample_count));
     std::vector<float> float_b(static_cast<std::size_t>(sample_count));
     std::vector<float> float_c(static_cast<std::size_t>(sample_count));
@@ -361,6 +381,7 @@ int main()
     {
         const std::size_t index = static_cast<std::size_t>(i);
         values[index] = dist(rng);
+        values64[index] = dist64(rng64);
 
         float_a[index] = fixed_dist(rng);
         float_b[index] = fixed_dist(rng);
@@ -409,6 +430,16 @@ int main()
         [&]
         {
             return static_cast<double>(runConstexprSqrtBatch(data, count));
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        "integerSqrt uint64",
+        [&]
+        {
+            return static_cast<double>(
+                runUint64SqrtBatch(values64.data(), count));
         },
         warmup_runs,
         sample_runs,

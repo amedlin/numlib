@@ -1,10 +1,14 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <random>
+#include <vector>
 
 #include "fixedpt/fixed_types.h"
+#include "int/isqrt.h"
 
 namespace
 {
@@ -822,4 +826,88 @@ TEST_CASE("Fixed Rep parameter and viaFloat trig")
     const Fixed16 angle(0.5f);
     REQUIRE(std::fabs(angle.sinViaFloat().getFloat() - std::sin(0.5f)) < trigTolerance<Fixed16>());
     REQUIRE(std::fabs(angle.cosViaFloat().getFloat() - std::cos(0.5f)) < trigTolerance<Fixed16>());
+}
+
+namespace
+{
+
+template <typename FixedType>
+void requireFixedSqrtRawIdentity(FixedType value)
+{
+    REQUIRE(value.getRawValue() >= 0);
+    const FixedType via_method = value.sqrt();
+    const FixedType via_free = integerSqrt(value);
+    REQUIRE(via_method.getRawValue() == via_free.getRawValue());
+
+    const auto raw = static_cast<std::uint32_t>(value.getRawValue());
+    const std::uint64_t widened =
+        static_cast<std::uint64_t>(raw) << FixedType::PRECISION;
+    const std::uint64_t expected = integerSqrt(widened).p_;
+    REQUIRE(static_cast<std::uint64_t>(via_method.getRawValue()) == expected);
+}
+
+template <typename FixedType>
+void exerciseFixedSqrtComprehensive()
+{
+    requireFixedSqrtRawIdentity(FixedType{0});
+    requireFixedSqrtRawIdentity(FixedType::getEpsilon());
+    requireFixedSqrtRawIdentity(FixedType{1});
+    requireFixedSqrtRawIdentity(FixedType{2});
+    requireFixedSqrtRawIdentity(FixedType{0.25f});
+    requireFixedSqrtRawIdentity(FixedType{0.5f});
+
+    const FixedType max_value = FixedType::getMaxValue();
+    if (max_value.getRawValue() > 0)
+    {
+        requireFixedSqrtRawIdentity(max_value);
+    }
+
+    std::mt19937 rng{0xF15EDULL};
+    std::uniform_int_distribution<std::int32_t> dist{
+        0,
+        max_value.getRawValue()};
+
+    std::vector<FixedType> samples;
+    samples.reserve(512);
+    for (int i = 0; i < 512; ++i)
+    {
+        const FixedType sample = FixedType::fromRaw(dist(rng));
+        requireFixedSqrtRawIdentity(sample);
+        samples.push_back(sample);
+    }
+
+    std::sort(
+        samples.begin(),
+        samples.end(),
+        [](FixedType a, FixedType b)
+        {
+            return a.getRawValue() < b.getRawValue();
+        });
+
+    for (std::size_t i = 1; i < samples.size(); ++i)
+    {
+        REQUIRE(samples[i - 1].sqrt().getRawValue() <= samples[i].sqrt().getRawValue());
+    }
+
+    // Algebra smoke: sqrt(x*x) ~= |x| when x*x stays in range.
+    for (float x : {0.0f, 0.5f, 1.0f, 2.0f, 3.5f, 10.0f})
+    {
+        const FixedType value{x};
+        const FixedType squared = value * value;
+        if (squared.getRawValue() < 0)
+        {
+            continue;
+        }
+        const FixedType root = squared.sqrt();
+        REQUIRE(std::fabs(root.getFloat() - x) < 4.0f * productTolerance<FixedType>());
+    }
+}
+
+} // namespace
+
+TEST_CASE("Fixed integerSqrt matches sqrt and floor(sqrt(raw<<P))")
+{
+    exerciseFixedSqrtComprehensive<Fixed16>();
+    exerciseFixedSqrtComprehensive<FixedF>();
+    exerciseFixedSqrtComprehensive<FixedI>();
 }

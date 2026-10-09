@@ -4,6 +4,10 @@
 #include <bit>
 #include <cstdint>
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
 static_assert(sizeof(int) == 4, "integerSqrt requires 32-bit int");
 
 /// Result of an exact 32-bit integer square-root calculation.
@@ -16,10 +20,22 @@ struct IntSqrtResult
     std::int32_t q_;
 };
 
+/// Result of an exact 64-bit unsigned integer square-root calculation.
+///
+/// For input n, p_ is floor(sqrt(n)) and q_ is the remainder such that
+/// n == p_ * p_ + q_ (with p_*p_ computed in 64-bit arithmetic; p_ fits in
+/// 32 bits for every std::uint64_t n).
+struct IntSqrt64Result
+{
+    std::uint64_t p_;
+    std::uint64_t q_;
+};
+
 namespace detail
 {
 
-// Integer square root used ONLY during compile-time table generation.
+// Integer square root used during compile-time table generation and as a
+// constexpr reference implementation.
 //
 // Returns floor(sqrt(n)).
 constexpr std::uint64_t constexprSqrt(std::uint64_t n) noexcept
@@ -79,12 +95,6 @@ constexpr std::uint64_t constexprSqrt(std::uint64_t n) noexcept
 //     a = (k + 1/2) / 512
 //       = (2k + 1) / 1024.
 //
-// Therefore:
-//
-//     C[k]
-//       = floor(2^21 / sqrt(2k+1))
-//       = floor(sqrt(2^42 / (2k+1))).
-//
 constexpr std::uint32_t SQRT_TABLE_SIZE = 1536;
 
 constexpr std::array<std::uint16_t, SQRT_TABLE_SIZE> makeSqrtTable() noexcept
@@ -110,15 +120,219 @@ inline constexpr auto SQRT_TABLE = makeSqrtTable();
 
 static_assert(sizeof(SQRT_TABLE) == 3072);
 
+// Wider reciprocal-sqrt table for 64-bit / Fixed paths: C ≈ 2^32 / sqrt(a).
+// Same 1536 bins; 6144 bytes. With the 16-bit table, total stays under 16 KiB.
+constexpr void mul64to128(
+    std::uint64_t a,
+    std::uint64_t b,
+    std::uint64_t& hi,
+    std::uint64_t& lo) noexcept
+{
+    const std::uint64_t a_lo = a & 0xffffffffull;
+    const std::uint64_t a_hi = a >> 32;
+    const std::uint64_t b_lo = b & 0xffffffffull;
+    const std::uint64_t b_hi = b >> 32;
+
+    const std::uint64_t p0 = a_lo * b_lo;
+    const std::uint64_t p1 = a_lo * b_hi;
+    const std::uint64_t p2 = a_hi * b_lo;
+    const std::uint64_t p3 = a_hi * b_hi;
+
+    const std::uint64_t mid = (p0 >> 32) + (p1 & 0xffffffffull) + (p2 & 0xffffffffull);
+    lo = (p0 & 0xffffffffull) | (mid << 32);
+    hi = p3 + (p1 >> 32) + (p2 >> 32) + (mid >> 32);
+}
+
+constexpr bool sqrtTable32EntryOk(std::uint32_t c, std::uint64_t d) noexcept
+{
+    // Accept c iff c^2 * d <= 2^74 (i.e. c <= 2^37 / sqrt(d)).
+    const std::uint64_t c2 =
+        static_cast<std::uint64_t>(c) * static_cast<std::uint64_t>(c);
+    std::uint64_t hi = 0;
+    std::uint64_t lo = 0;
+    mul64to128(c2, d, hi, lo);
+    // 2^74 = 1024 << 64.
+    return hi < 1024ull || (hi == 1024ull && lo == 0ull);
+}
+
+constexpr std::array<std::uint32_t, SQRT_TABLE_SIZE> makeSqrtTable32() noexcept
+{
+    std::array<std::uint32_t, SQRT_TABLE_SIZE> table{};
+
+    for (std::uint32_t i = 0; i < SQRT_TABLE_SIZE; ++i)
+    {
+        const std::uint64_t d = 2ull * (i + 512u) + 1ull;
+        std::uint32_t lo = 1u;
+        std::uint32_t hi = 0xffffffffu;
+        while (lo < hi)
+        {
+            const std::uint32_t mid = lo + ((hi - lo + 1u) >> 1);
+            if (sqrtTable32EntryOk(mid, d))
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid - 1u;
+            }
+        }
+        table[i] = lo;
+    }
+
+    return table;
+}
+
+alignas(64)
+inline constexpr auto SQRT_TABLE32 = makeSqrtTable32();
+
+static_assert(sizeof(SQRT_TABLE32) == 6144);
+static_assert(sizeof(SQRT_TABLE) + sizeof(SQRT_TABLE32) <= 16u * 1024u);
+
+[[nodiscard]]
+inline std::uint64_t polishFloorSqrt(std::uint64_t n, std::uint64_t p) noexcept
+{
+    if (p == 0u)
+    {
+        p = 1u;
+    }
+    if (p > 0xffffffffull)
+    {
+        p = 0xffffffffull;
+    }
+
+    std::uint64_t square = p * p;
+    if (square > n)
+    {
+        do
+        {
+            --p;
+            square -= 2u * p + 1u;
+        } while (square > n);
+    }
+    else
+    {
+        for (;;)
+        {
+            const std::uint64_t delta = 2u * p + 1u;
+            if (delta > n - square)
+            {
+                break;
+            }
+            square += delta;
+            ++p;
+        }
+    }
+
+    return p;
+}
+
+// LUT estimate using 32-bit C entries. Product is a full 64x64→128 multiply.
+[[nodiscard]]
+inline std::uint64_t lutSqrtEstimate32(std::uint64_t n) noexcept
+{
+    const unsigned e = 63u - static_cast<unsigned>(std::countl_zero(n));
+    const unsigned e_even = e & ~1u;
+
+    const std::uint64_t x_q30 = (e_even <= 30u)
+        ? (n << (30u - e_even))
+        : (n >> (e_even - 30u));
+    const std::uint64_t y = x_q30 - (1ull << 30);
+    const std::uint32_t k = static_cast<std::uint32_t>(y >> 21);
+    const std::uint64_t c = SQRT_TABLE32[k];
+    const std::uint64_t numerator =
+        y + (static_cast<std::uint64_t>(k) << 21) + 0x80100000ull;
+
+    // W=32 vs W=16 adds 16 shift bits relative to the 32-bit path (47 → 63).
+    const unsigned shift = 63u - (e_even >> 1);
+
+#if defined(_MSC_VER)
+    std::uint64_t hi = 0;
+    const std::uint64_t lo = _umul128(numerator, c, &hi);
+    if (shift >= 64u)
+    {
+        return hi >> (shift - 64u);
+    }
+    return (hi << (64u - shift)) | (lo >> shift);
+#else
+    using U128 = unsigned __int128;
+    const U128 product = static_cast<U128>(numerator) * static_cast<U128>(c);
+    return static_cast<std::uint64_t>(product >> shift);
+#endif
+}
+
+// Exact floor(sqrt(n)) for uint64 via wide LUT + mul-based ±1 polish (no Newton).
+[[nodiscard]]
+inline std::uint64_t floorSqrtU64(std::uint64_t n) noexcept
+{
+    if (n <= 1u)
+    {
+        return n;
+    }
+
+    return polishFloorSqrt(n, lutSqrtEstimate32(n));
+}
+
+// Specialized Fixed raw sqrt: floor(sqrt(x << P)) for non-negative 32-bit x.
+//
+// Folds compile-time P into the normalization exponent instead of forming a
+// general uint64 domain problem first. Polishes against n = x << P.
+template <int P>
+[[nodiscard]]
+inline std::uint32_t floorSqrtFixedRaw(std::uint32_t x) noexcept
+{
+    static_assert(P > 0 && P < 32);
+
+    if (x == 0u)
+    {
+        return 0u;
+    }
+
+    const std::uint64_t n = static_cast<std::uint64_t>(x) << P;
+    const unsigned e_x = 31u - static_cast<unsigned>(std::countl_zero(x));
+    const unsigned e_even = (e_x + static_cast<unsigned>(P)) & ~1u;
+
+    // Mantissa of (x << P) in Q30 over [1, 4).
+    const std::uint64_t x_q30 =
+        static_cast<std::uint64_t>(x) << (30u - e_even + static_cast<unsigned>(P));
+    const std::uint64_t y = x_q30 - (1ull << 30);
+    const std::uint32_t k = static_cast<std::uint32_t>(y >> 21);
+    const std::uint64_t c = SQRT_TABLE32[k];
+    const std::uint64_t numerator =
+        y + (static_cast<std::uint64_t>(k) << 21) + 0x80100000ull;
+
+    const unsigned shift = 63u - (e_even >> 1);
+
+#if defined(_MSC_VER)
+    std::uint64_t hi = 0;
+    const std::uint64_t lo = _umul128(numerator, c, &hi);
+    const std::uint64_t p = (shift >= 64u)
+        ? (hi >> (shift - 64u))
+        : ((hi << (64u - shift)) | (lo >> shift));
+#else
+    using U128 = unsigned __int128;
+    const std::uint64_t p = static_cast<std::uint64_t>(
+        (static_cast<U128>(numerator) * static_cast<U128>(c)) >> shift);
+#endif
+
+    return static_cast<std::uint32_t>(polishFloorSqrt(n, p));
+}
+
 } // namespace detail
 
+
+// Deleted primary: unsupported argument types fail at compile time.
+// int uses an explicit specialization; uint64_t and Fixed use overloads
+// (different return types; function templates cannot partially specialize).
+template <typename T>
+IntSqrtResult integerSqrt(T) = delete;
 
 /// Calculates the exact floor square root and remainder of a signed 32-bit integer.
 ///
 /// Positive input n returns {p, q}, where p = floor(sqrt(n)) and
 /// n = p * p + q. Zero returns {0, 0}; negative input returns {0, input}.
+template <>
 [[nodiscard]]
-inline IntSqrtResult integerSqrt(int input) noexcept
+inline IntSqrtResult integerSqrt<int>(int input) noexcept
 {
     if (input <= 0)
     {
@@ -243,4 +457,18 @@ inline IntSqrtResult integerSqrt(int input) noexcept
         static_cast<int>(p),
         static_cast<int>(n - square)
     };
+}
+
+/// Exact floor square root and remainder for any std::uint64_t.
+[[nodiscard]]
+inline IntSqrt64Result integerSqrt(std::uint64_t input) noexcept
+{
+    if (input == 0u)
+    {
+        return { 0u, 0u };
+    }
+
+    const std::uint64_t p = detail::floorSqrtU64(input);
+    const std::uint64_t square = p * p;
+    return { p, input - square };
 }
