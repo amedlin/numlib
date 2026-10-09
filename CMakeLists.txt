@@ -27,12 +27,18 @@ target_include_directories(numlib PUBLIC
 )
 target_compile_features(numlib PUBLIC cxx_std_20)
 
-# integerSqrt is inline in a header, so dependents must see the same ISA.
-# MSVC /arch:AVX2 also enables BMI2 (lzcnt, shlx, shrx). Clang-cl sets MSVC.
+# Optional x86 AVX2 for dependents of the inline isqrt headers. Skip on ARM and
+# other ISAs (e.g. Apple Silicon) where -mavx2 / /arch:AVX2 is invalid.
+include(CheckCXXCompilerFlag)
 if(MSVC)
-    target_compile_options(numlib PUBLIC /arch:AVX2)
+    if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "ARM|aarch64|arm64")
+        target_compile_options(numlib PUBLIC /arch:AVX2)
+    endif()
 else()
-    target_compile_options(numlib PUBLIC -mavx2)
+    check_cxx_compiler_flag("-mavx2" NUMLIB_HAS_MAVX2)
+    if(NUMLIB_HAS_MAVX2)
+        target_compile_options(numlib PUBLIC -mavx2)
+    endif()
 endif()
 
 install(TARGETS numlib

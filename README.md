@@ -20,7 +20,7 @@ remainder.
 - Exact `floor(sqrt(n))` for 32-bit signed integers, with remainder
 - `constexpr` support for core fixed-point operations
 - CMake targets for subdirectory and installed-package use
-- Tested with MSVC, Clang, and GCC; requires an AVX2-capable target
+- Tested with MSVC, Clang, and GCC; enables AVX2 on x86/x64 when the compiler supports it (skipped on ARM)
 
 Read the focused guides for [fixed-point arithmetic](docs/fixed-point.md) and
 [integer square root](docs/integer-square-root.md).

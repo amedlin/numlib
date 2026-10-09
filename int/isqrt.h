@@ -3,8 +3,9 @@
 #include <array>
 #include <bit>
 #include <cstdint>
+#include <type_traits>
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64) || defined(_M_ARM64EC))
 #include <intrin.h>
 #endif
 
@@ -122,12 +123,32 @@ static_assert(sizeof(SQRT_TABLE) == 3072);
 
 // Wider reciprocal-sqrt table for 64-bit / Fixed paths: C ≈ 2^32 / sqrt(a).
 // Same 1536 bins; 6144 bytes. With the 16-bit table, total stays under 16 KiB.
+// Portable 64x64 -> 128 multiply. Fast paths use __int128 / MSVC intrinsics
+// when available; schoolbook multiply otherwise (correct on all platforms).
 constexpr void mul64to128(
     std::uint64_t a,
     std::uint64_t b,
     std::uint64_t& hi,
     std::uint64_t& lo) noexcept
 {
+    if (!std::is_constant_evaluated())
+    {
+#if defined(__SIZEOF_INT128__)
+        const auto product =
+            static_cast<unsigned __int128>(a) * static_cast<unsigned __int128>(b);
+        lo = static_cast<std::uint64_t>(product);
+        hi = static_cast<std::uint64_t>(product >> 64);
+        return;
+#elif defined(_MSC_VER) && defined(_M_X64) && !defined(_M_ARM64EC)
+        lo = _umul128(a, b, &hi);
+        return;
+#elif defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC))
+        lo = a * b;
+        hi = __umulh(a, b);
+        return;
+#endif
+    }
+
     const std::uint64_t a_lo = a & 0xffffffffull;
     const std::uint64_t a_hi = a >> 32;
     const std::uint64_t b_lo = b & 0xffffffffull;
@@ -141,6 +162,19 @@ constexpr void mul64to128(
     const std::uint64_t mid = (p0 >> 32) + (p1 & 0xffffffffull) + (p2 & 0xffffffffull);
     lo = (p0 & 0xffffffffull) | (mid << 32);
     hi = p3 + (p1 >> 32) + (p2 >> 32) + (mid >> 32);
+}
+
+[[nodiscard]]
+constexpr std::uint64_t mul64Shift(std::uint64_t a, std::uint64_t b, unsigned shift) noexcept
+{
+    std::uint64_t hi = 0;
+    std::uint64_t lo = 0;
+    mul64to128(a, b, hi, lo);
+    if (shift >= 64u)
+    {
+        return hi >> (shift - 64u);
+    }
+    return (hi << (64u - shift)) | (lo >> shift);
 }
 
 constexpr bool sqrtTable32EntryOk(std::uint32_t c, std::uint64_t d) noexcept
@@ -244,20 +278,7 @@ inline std::uint64_t lutSqrtEstimate32(std::uint64_t n) noexcept
 
     // W=32 vs W=16 adds 16 shift bits relative to the 32-bit path (47 → 63).
     const unsigned shift = 63u - (e_even >> 1);
-
-#if defined(_MSC_VER)
-    std::uint64_t hi = 0;
-    const std::uint64_t lo = _umul128(numerator, c, &hi);
-    if (shift >= 64u)
-    {
-        return hi >> (shift - 64u);
-    }
-    return (hi << (64u - shift)) | (lo >> shift);
-#else
-    using U128 = unsigned __int128;
-    const U128 product = static_cast<U128>(numerator) * static_cast<U128>(c);
-    return static_cast<std::uint64_t>(product >> shift);
-#endif
+    return mul64Shift(numerator, c, shift);
 }
 
 // Exact floor(sqrt(n)) for uint64 via wide LUT + mul-based ±1 polish (no Newton).
@@ -301,19 +322,7 @@ inline std::uint32_t floorSqrtFixedRaw(std::uint32_t x) noexcept
         y + (static_cast<std::uint64_t>(k) << 21) + 0x80100000ull;
 
     const unsigned shift = 63u - (e_even >> 1);
-
-#if defined(_MSC_VER)
-    std::uint64_t hi = 0;
-    const std::uint64_t lo = _umul128(numerator, c, &hi);
-    const std::uint64_t p = (shift >= 64u)
-        ? (hi >> (shift - 64u))
-        : ((hi << (64u - shift)) | (lo >> shift));
-#else
-    using U128 = unsigned __int128;
-    const std::uint64_t p = static_cast<std::uint64_t>(
-        (static_cast<U128>(numerator) * static_cast<U128>(c)) >> shift);
-#endif
-
+    const std::uint64_t p = mul64Shift(numerator, c, shift);
     return static_cast<std::uint32_t>(polishFloorSqrt(n, p));
 }
 
@@ -324,7 +333,7 @@ inline std::uint32_t floorSqrtFixedRaw(std::uint32_t x) noexcept
 // int uses an explicit specialization; uint64_t and Fixed use overloads
 // (different return types; function templates cannot partially specialize).
 template <typename T>
-IntSqrtResult integerSqrt(T) = delete;
+IntSqrtResult integerSqrt(T) noexcept = delete;
 
 /// Calculates the exact floor square root and remainder of a signed 32-bit integer.
 ///

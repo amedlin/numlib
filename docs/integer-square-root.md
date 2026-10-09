@@ -62,9 +62,9 @@ these formats, `Fixed::sqrt()` delegates to this overload at runtime.
 
 ## Requirements
 
-The `int` specialization requires a platform with 32-bit `int`. The current
-CMake target also requires AVX2 when it compiles consumers of this inline
-header.
+The `int` specialization requires a platform with 32-bit `int`. On x86/x64
+hosts, CMake may enable AVX2 for consumers of this inline header when the
+compiler supports it; ARM and other ISAs skip that flag.
 
 ## Use cases
 

@@ -120,11 +120,11 @@ constexpr double constexprFmod(double x, double y) noexcept
     return x - y * static_cast<double>(n);
 }
 
-// Circular CORDIC: angle, sin, and cos share the same Q format (P fractional bits).
-// Range reduction uses double so large angles stay accurate; the rotation loop is fixed-point.
-template <int P, class Rep, int Iterations>
+// CORDIC constants live at namespace scope so they are valid in C++20 constexpr
+// functions (GCC rejects static locals inside constexpr until C++23).
+template <int P, class Rep>
     requires FixedRep<Rep>
-constexpr void cordicSinCos(Rep angle_raw, Rep& sin_raw, Rep& cos_raw) noexcept
+struct CordicConstants
 {
     using Wide = WideningT<Rep>;
     using Unsigned = std::make_unsigned_t<Rep>;
@@ -137,16 +137,26 @@ constexpr void cordicSinCos(Rep angle_raw, Rep& sin_raw, Rep& cos_raw) noexcept
     static constexpr double TWO_PI = 2.0 * PI;
     static constexpr double HALF_PI = 0.5 * PI;
     static constexpr Wide K = static_cast<Wide>(CORDIC_K * SCALE + 0.5);
+};
+
+// Circular CORDIC: angle, sin, and cos share the same Q format (P fractional bits).
+// Range reduction uses double so large angles stay accurate; the rotation loop is fixed-point.
+template <int P, class Rep, int Iterations>
+    requires FixedRep<Rep>
+constexpr void cordicSinCos(Rep angle_raw, Rep& sin_raw, Rep& cos_raw) noexcept
+{
+    using Wide = WideningT<Rep>;
+    using Constants = CordicConstants<P, Rep>;
 
     double z = fixedToFloat(angle_raw, P);
-    z = constexprFmod(z, TWO_PI);
+    z = constexprFmod(z, Constants::TWO_PI);
     if (z < 0.0)
     {
-        z += TWO_PI;
+        z += Constants::TWO_PI;
     }
-    if (z > PI)
+    if (z > Constants::PI)
     {
-        z -= TWO_PI;
+        z -= Constants::TWO_PI;
     }
 
     Wide sign_sin = 1;
@@ -156,21 +166,22 @@ constexpr void cordicSinCos(Rep angle_raw, Rep& sin_raw, Rep& cos_raw) noexcept
         z = -z;
         sign_sin = -1;
     }
-    if (z > HALF_PI)
+    if (z > Constants::HALF_PI)
     {
-        z = PI - z;
+        z = Constants::PI - z;
         sign_cos = -1;
     }
 
-    Wide z_fixed = static_cast<Wide>(z * SCALE + 0.5);
-    Wide x = K;
+    Wide z_fixed = static_cast<Wide>(z * Constants::SCALE + 0.5);
+    Wide x = Constants::K;
     Wide y = 0;
 
-    for (int i = 0; i < Iterations && i < TABLE_SIZE; ++i)
+    for (int i = 0; i < Iterations && i < Constants::TABLE_SIZE; ++i)
     {
         const Wide x_shift = x >> i;
         const Wide y_shift = y >> i;
-        const Wide atan = static_cast<Wide>(ATAN[static_cast<std::size_t>(i)]);
+        const Wide atan =
+            static_cast<Wide>(Constants::ATAN[static_cast<std::size_t>(i)]);
         Wide next_x;
         Wide next_y;
         if (z_fixed >= 0)
@@ -467,6 +478,7 @@ constexpr Fixed<P, Rep>::Fixed(Rep value) noexcept
     using Wide = detail::WideningT<Rep>;
     const Wide abs_value = value < 0 ? -static_cast<Wide>(value) : static_cast<Wide>(value);
     assert(static_cast<float>(abs_value) <= Fixed::getMaxValue().getFloat());
+    (void)abs_value;
     x_ = detail::intToFixed(value, P);
 }
 
@@ -481,6 +493,7 @@ constexpr Fixed<P, Rep>::Fixed(Rep numerator, Rep denominator) noexcept
     };
     constexpr int BITS = static_cast<int>(sizeof(Rep) * 8);
     assert(abs_wide(numerator) < (Wide{1} << (BITS - 1 - P)) * abs_wide(denominator));
+    (void)BITS;
     *this = fromRaw(numerator) / fromRaw(denominator);
 }
 
@@ -516,6 +529,7 @@ constexpr Fixed<P, Rep>& Fixed<P, Rep>::operator=(Rep value) noexcept
     using Wide = detail::WideningT<Rep>;
     const Wide abs_value = value < 0 ? -static_cast<Wide>(value) : static_cast<Wide>(value);
     assert(static_cast<float>(abs_value) <= Fixed::getMaxValue().getFloat());
+    (void)abs_value;
     x_ = detail::intToFixed(value, P);
     return *this;
 }
