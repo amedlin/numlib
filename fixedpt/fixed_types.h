@@ -9,30 +9,13 @@
 class Fixed16 : public Fixed<16>
 {
 public:
-    Fixed16() noexcept = default;
+    using Fixed<16>::Fixed;
+    using Fixed<16>::operator=;
 
-    Fixed16(Fixed<16> value) noexcept
+    constexpr Fixed16() noexcept = default;
+
+    constexpr Fixed16(Fixed<16> value) noexcept
         : Fixed<16>(value)
-    {
-    }
-
-    explicit Fixed16(float value) noexcept
-        : Fixed<16>(value)
-    {
-    }
-
-    explicit Fixed16(double value) noexcept
-        : Fixed<16>(value)
-    {
-    }
-
-    explicit Fixed16(std::int32_t value) noexcept
-        : Fixed<16>(value)
-    {
-    }
-
-    Fixed16(std::int32_t numerator, std::int32_t denominator) noexcept
-        : Fixed<16>(numerator, denominator)
     {
     }
 
@@ -40,37 +23,19 @@ public:
 
     Fixed16& operator=(const FixedF& value) noexcept;
 
-    Fixed16& operator=(std::int32_t value) noexcept
-    {
-        *static_cast<Fixed<16>*>(this) = value;
-        return *this;
-    }
-
-    Fixed16& operator=(float value) noexcept
-    {
-        *static_cast<Fixed<16>*>(this) = value;
-        return *this;
-    }
-
-    Fixed16& operator=(double value) noexcept
-    {
-        *static_cast<Fixed<16>*>(this) = value;
-        return *this;
-    }
-
     [[nodiscard]]
-    Fixed16 operator*(std::int32_t value) const noexcept
+    constexpr Fixed16 operator*(std::int32_t value) const noexcept
     {
-        return (*static_cast<const Fixed<16>*>(this)) * value;
+        return Fixed16{Fixed<16>::operator*(value)};
     }
 
     [[nodiscard]] Fixed16 operator*(FixedF value) const noexcept;
     [[nodiscard]] FixedI operator*(FixedI value) const noexcept;
 
     [[nodiscard]]
-    Fixed16 operator/(std::int32_t value) const noexcept
+    constexpr Fixed16 operator/(std::int32_t value) const noexcept
     {
-        return Fixed<16>::operator/(value);
+        return Fixed16{Fixed<16>::operator/(value)};
     }
 
     [[nodiscard]] Fixed16 expApprox() const noexcept;
@@ -84,30 +49,13 @@ public:
 class FixedF : public Fixed<24>
 {
 public:
-    FixedF() noexcept = default;
+    using Fixed<24>::Fixed;
+    using Fixed<24>::operator=;
 
-    FixedF(Fixed<24> value) noexcept
+    constexpr FixedF() noexcept = default;
+
+    constexpr FixedF(Fixed<24> value) noexcept
         : Fixed<24>(value)
-    {
-    }
-
-    explicit FixedF(float value) noexcept
-        : Fixed<24>(value)
-    {
-    }
-
-    explicit FixedF(double value) noexcept
-        : Fixed<24>(value)
-    {
-    }
-
-    explicit FixedF(std::int32_t value) noexcept
-        : Fixed<24>(value)
-    {
-    }
-
-    FixedF(std::int32_t numerator, std::int32_t denominator) noexcept
-        : Fixed<24>(numerator, denominator)
     {
     }
 
@@ -118,34 +66,16 @@ public:
 
     FixedF& operator=(const Fixed<16>& value) noexcept;
 
-    FixedF& operator=(std::int32_t value) noexcept
+    [[nodiscard]]
+    constexpr FixedF operator*(std::int32_t value) const noexcept
     {
-        *static_cast<Fixed<24>*>(this) = value;
-        return *this;
-    }
-
-    FixedF& operator=(float value) noexcept
-    {
-        *static_cast<Fixed<24>*>(this) = value;
-        return *this;
-    }
-
-    FixedF& operator=(double value) noexcept
-    {
-        *static_cast<Fixed<24>*>(this) = value;
-        return *this;
+        return FixedF{Fixed<24>::operator*(value)};
     }
 
     [[nodiscard]]
-    FixedF operator*(std::int32_t value) const noexcept
+    constexpr FixedF operator/(std::int32_t value) const noexcept
     {
-        return static_cast<Fixed<24>>(*this) * value;
-    }
-
-    [[nodiscard]]
-    FixedF operator/(std::int32_t value) const noexcept
-    {
-        return static_cast<Fixed<24>>(*this) / value;
+        return FixedF{Fixed<24>::operator/(value)};
     }
 
     [[nodiscard]] Fixed16 operator*(FixedI value) const noexcept;
@@ -161,30 +91,13 @@ public:
 class FixedI : public Fixed<8>
 {
 public:
-    FixedI() noexcept = default;
+    using Fixed<8>::Fixed;
+    using Fixed<8>::operator=;
 
-    FixedI(Fixed<8> value) noexcept
+    constexpr FixedI() noexcept = default;
+
+    constexpr FixedI(Fixed<8> value) noexcept
         : Fixed<8>(value)
-    {
-    }
-
-    explicit FixedI(float value) noexcept
-        : Fixed<8>(value)
-    {
-    }
-
-    explicit FixedI(double value) noexcept
-        : Fixed<8>(value)
-    {
-    }
-
-    explicit FixedI(std::int32_t value) noexcept
-        : Fixed<8>(value)
-    {
-    }
-
-    FixedI(std::int32_t numerator, std::int32_t denominator) noexcept
-        : Fixed<8>(numerator, denominator)
     {
     }
 
@@ -195,34 +108,16 @@ public:
 
     FixedI& operator=(const Fixed<16>& value) noexcept;
 
-    FixedI& operator=(std::int32_t value) noexcept
+    [[nodiscard]]
+    constexpr FixedI operator/(std::int32_t value) const noexcept
     {
-        *static_cast<Fixed<8>*>(this) = value;
-        return *this;
-    }
-
-    FixedI& operator=(float value) noexcept
-    {
-        *static_cast<Fixed<8>*>(this) = value;
-        return *this;
-    }
-
-    FixedI& operator=(double value) noexcept
-    {
-        *static_cast<Fixed<8>*>(this) = value;
-        return *this;
+        return FixedI{Fixed<8>::operator/(value)};
     }
 
     [[nodiscard]]
-    FixedI operator/(std::int32_t value) const noexcept
+    constexpr FixedI operator*(std::int32_t value) const noexcept
     {
-        return static_cast<Fixed<8>>(*this) / value;
-    }
-
-    [[nodiscard]]
-    FixedI operator*(std::int32_t value) const noexcept
-    {
-        return static_cast<Fixed<8>>(*this) * value;
+        return FixedI{Fixed<8>::operator*(value)};
     }
 
     [[nodiscard]] Fixed16 operator*(FixedF value) const noexcept;
@@ -240,27 +135,24 @@ inline FixedF& FixedF::operator=(const Fixed<16>& value) noexcept
 
 inline Fixed16 FixedF::operator*(FixedI value) const noexcept
 {
-    return (*reinterpret_cast<const Fixed<16>*>(this)) * (*reinterpret_cast<Fixed<16>*>(&value));
+    // Same bit-width multiply as Q16.16 × Q16.16 on the raw representations.
+    return Fixed16{Fixed<16>::fromRaw(x_) * Fixed<16>::fromRaw(value.x_)};
 }
 
 inline Fixed16 FixedF::operator*(Fixed16 value) const noexcept
 {
-    Fixed16 result;
     const std::int64_t product =
         (static_cast<std::int64_t>(x_) * static_cast<std::int64_t>(value.x_)) >> PRECISION;
-    result.x_ = static_cast<std::int32_t>(product);
-    assert(product == static_cast<std::int64_t>(result.x_));
-    return result;
+    assert(product == static_cast<std::int32_t>(product));
+    return Fixed16{Fixed<16>::fromRaw(static_cast<std::int32_t>(product))};
 }
 
 inline FixedF FixedF::operator/(FixedI value) const noexcept
 {
     assert(value.x_ != 0);
-    FixedF result;
     const std::int64_t quotient = (static_cast<std::int64_t>(x_) << 8) / static_cast<std::int64_t>(value.x_);
-    result.x_ = static_cast<std::int32_t>(quotient);
-    assert(quotient == static_cast<std::int64_t>(result.x_));
-    return result;
+    assert(quotient == static_cast<std::int32_t>(quotient));
+    return FixedF{fromRaw(static_cast<std::int32_t>(quotient))};
 }
 
 inline FixedI& FixedI::operator=(const Fixed<16>& value) noexcept
@@ -276,20 +168,16 @@ inline Fixed16 FixedI::operator*(FixedF value) const noexcept
 
 inline FixedI FixedI::operator*(Fixed16 value) const noexcept
 {
-    FixedI result;
     const std::int64_t product = (static_cast<std::int64_t>(x_) * static_cast<std::int64_t>(value.x_)) >> 16;
-    result.x_ = static_cast<std::int32_t>(product);
-    assert(product == static_cast<std::int64_t>(result.x_));
-    return result;
+    assert(product == static_cast<std::int32_t>(product));
+    return FixedI{fromRaw(static_cast<std::int32_t>(product))};
 }
 
 inline FixedI FixedI::operator/(Fixed16 value) const noexcept
 {
-    FixedI result;
     const std::int64_t quotient = (static_cast<std::int64_t>(x_) << 16) / static_cast<std::int64_t>(value.x_);
-    result.x_ = static_cast<std::int32_t>(quotient);
-    assert(quotient == static_cast<std::int64_t>(result.x_));
-    return result;
+    assert(quotient == static_cast<std::int32_t>(quotient));
+    return FixedI{fromRaw(static_cast<std::int32_t>(quotient))};
 }
 
 inline Fixed16 Fixed16::operator*(FixedF value) const noexcept
