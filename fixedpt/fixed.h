@@ -1,59 +1,223 @@
 #pragma once
 
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <compare>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 
 namespace detail
 {
 
-[[nodiscard]]
-constexpr std::int32_t floatToFixed(float value, int fractional_bits) noexcept
+template <class Rep>
+struct Widening;
+
+template <>
+struct Widening<std::int16_t>
 {
-    return static_cast<std::int32_t>(value * static_cast<float>(1 << fractional_bits));
+    using type = std::int32_t;
+};
+
+template <>
+struct Widening<std::int32_t>
+{
+    using type = std::int64_t;
+};
+
+#if defined(__SIZEOF_INT128__)
+template <>
+struct Widening<std::int64_t>
+{
+    using type = __int128;
+};
+#endif
+
+template <class Rep>
+using WideningT = typename Widening<Rep>::type;
+
+template <class Rep>
+concept FixedRep = std::is_integral_v<Rep> && std::is_signed_v<Rep> && requires { typename Widening<Rep>::type; };
+
+template <class Rep>
+    requires FixedRep<Rep>
+[[nodiscard]]
+constexpr Rep floatToFixed(float value, int fractional_bits) noexcept
+{
+    using Unsigned = std::make_unsigned_t<Rep>;
+    return static_cast<Rep>(value * static_cast<float>(Unsigned{1} << fractional_bits));
+}
+
+template <class Rep>
+    requires FixedRep<Rep>
+[[nodiscard]]
+constexpr Rep intToFixed(Rep value, int fractional_bits) noexcept
+{
+    return static_cast<Rep>(value << fractional_bits);
+}
+
+template <class Rep>
+    requires FixedRep<Rep>
+[[nodiscard]]
+constexpr float fixedToFloat(Rep value, int fractional_bits) noexcept
+{
+    using Unsigned = std::make_unsigned_t<Rep>;
+    return static_cast<float>(value) / static_cast<float>(Unsigned{1} << fractional_bits);
+}
+
+template <class Rep>
+    requires FixedRep<Rep>
+[[nodiscard]]
+constexpr Rep fixedToInt(Rep value, int fractional_bits) noexcept
+{
+    return static_cast<Rep>(value >> fractional_bits);
 }
 
 [[nodiscard]]
-constexpr std::int32_t intToFixed(std::int32_t value, int fractional_bits) noexcept
+constexpr double constexprAtan(double x) noexcept
 {
-    return value << fractional_bits;
+    // Taylor series valid for |x| <= 1.
+    const double x2 = x * x;
+    double term = x;
+    double sum = 0.0;
+    for (int n = 0; n < 40; ++n)
+    {
+        sum += term / static_cast<double>(2 * n + 1);
+        term *= -x2;
+    }
+    return sum;
+}
+
+template <int P, int N>
+[[nodiscard]]
+constexpr std::array<std::int64_t, N> makeCordicAtanTable() noexcept
+{
+    std::array<std::int64_t, N> table{};
+    constexpr double SCALE = static_cast<double>(std::int64_t{1} << P);
+    constexpr double PI_OVER_4 = 0.78539816339744830961566084581988;
+
+    table[0] = static_cast<std::int64_t>(PI_OVER_4 * SCALE + 0.5);
+    for (int i = 1; i < N; ++i)
+    {
+        double x = 1.0;
+        for (int k = 0; k < i; ++k)
+        {
+            x *= 0.5;
+        }
+        table[static_cast<std::size_t>(i)] = static_cast<std::int64_t>(constexprAtan(x) * SCALE + 0.5);
+    }
+    return table;
 }
 
 [[nodiscard]]
-constexpr float fixedToFloat(std::int32_t value, int fractional_bits) noexcept
+constexpr double constexprFmod(double x, double y) noexcept
 {
-    return static_cast<float>(value) / static_cast<float>(1 << fractional_bits);
+    const double q = x / y;
+    const auto n = static_cast<long long>(q);
+    return x - y * static_cast<double>(n);
 }
 
-[[nodiscard]]
-constexpr std::int32_t fixedToInt(std::int32_t value, int fractional_bits) noexcept
+// Circular CORDIC: angle, sin, and cos share the same Q format (P fractional bits).
+// Range reduction uses double so large angles stay accurate; the rotation loop is fixed-point.
+template <int P, class Rep, int Iterations>
+    requires FixedRep<Rep>
+constexpr void cordicSinCos(Rep angle_raw, Rep& sin_raw, Rep& cos_raw) noexcept
 {
-    return value >> fractional_bits;
+    using Wide = WideningT<Rep>;
+    using Unsigned = std::make_unsigned_t<Rep>;
+
+    static constexpr int TABLE_SIZE = std::numeric_limits<Rep>::digits;
+    static constexpr auto ATAN = makeCordicAtanTable<P, TABLE_SIZE>();
+    static constexpr double CORDIC_K = 0.6072529350088812561694;
+    static constexpr double SCALE = static_cast<double>(Unsigned{1} << P);
+    static constexpr double PI = 3.14159265358979323846;
+    static constexpr double TWO_PI = 2.0 * PI;
+    static constexpr double HALF_PI = 0.5 * PI;
+    static constexpr Wide K = static_cast<Wide>(CORDIC_K * SCALE + 0.5);
+
+    double z = fixedToFloat(angle_raw, P);
+    z = constexprFmod(z, TWO_PI);
+    if (z < 0.0)
+    {
+        z += TWO_PI;
+    }
+    if (z > PI)
+    {
+        z -= TWO_PI;
+    }
+
+    Wide sign_sin = 1;
+    Wide sign_cos = 1;
+    if (z < 0.0)
+    {
+        z = -z;
+        sign_sin = -1;
+    }
+    if (z > HALF_PI)
+    {
+        z = PI - z;
+        sign_cos = -1;
+    }
+
+    Wide z_fixed = static_cast<Wide>(z * SCALE + 0.5);
+    Wide x = K;
+    Wide y = 0;
+
+    for (int i = 0; i < Iterations && i < TABLE_SIZE; ++i)
+    {
+        const Wide x_shift = x >> i;
+        const Wide y_shift = y >> i;
+        const Wide atan = static_cast<Wide>(ATAN[static_cast<std::size_t>(i)]);
+        Wide next_x;
+        Wide next_y;
+        if (z_fixed >= 0)
+        {
+            next_x = x - y_shift;
+            next_y = y + x_shift;
+            z_fixed = z_fixed - atan;
+        }
+        else
+        {
+            next_x = x + y_shift;
+            next_y = y - x_shift;
+            z_fixed = z_fixed + atan;
+        }
+        x = next_x;
+        y = next_y;
+    }
+
+    cos_raw = static_cast<Rep>(sign_cos * x);
+    sin_raw = static_cast<Rep>(sign_sin * y);
 }
 
 } // namespace detail
 
 
-// Fixed-point number with P fractional bits in a signed 32-bit container (Q(32-P).P).
-template <int P>
-    requires(P > 0 && P < 32)
+/// Binary fixed-point number with P fractional bits in a signed Rep container.
+///
+/// The default representation is std::int32_t, which gives Q(32-P).P.
+/// Wider signed representations are supported when a widening integer type is
+/// available. Arithmetic is not saturating; debug assertions detect many
+/// out-of-range results and invalid inputs.
+template <int P, detail::FixedRep Rep = std::int32_t>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
 class Fixed
 {
 public:
     static constexpr int PRECISION = P;
+    using rep = Rep;
 
     constexpr Fixed() noexcept = default;
 
     explicit Fixed(float value) noexcept;
     explicit Fixed(double value) noexcept;
-    explicit constexpr Fixed(std::int32_t value) noexcept;
-    constexpr Fixed(std::int32_t numerator, std::int32_t denominator) noexcept;
+    explicit constexpr Fixed(Rep value) noexcept;
+    constexpr Fixed(Rep numerator, Rep denominator) noexcept;
 
     Fixed& operator=(float value) noexcept;
     Fixed& operator=(double value) noexcept;
-    constexpr Fixed& operator=(std::int32_t value) noexcept;
+    constexpr Fixed& operator=(Rep value) noexcept;
 
     [[nodiscard]]
     constexpr bool operator==(const Fixed& other) const noexcept = default;
@@ -61,17 +225,17 @@ public:
     [[nodiscard]]
     constexpr std::strong_ordering operator<=>(const Fixed& other) const noexcept = default;
 
-    [[nodiscard]] constexpr bool operator>(std::int32_t value) const noexcept;
-    [[nodiscard]] constexpr bool operator<(std::int32_t value) const noexcept;
-    [[nodiscard]] constexpr bool operator>=(std::int32_t value) const noexcept;
-    [[nodiscard]] constexpr bool operator<=(std::int32_t value) const noexcept;
-    [[nodiscard]] constexpr bool operator==(std::int32_t value) const noexcept;
-    [[nodiscard]] constexpr bool operator!=(std::int32_t value) const noexcept;
+    [[nodiscard]] constexpr bool operator>(Rep value) const noexcept;
+    [[nodiscard]] constexpr bool operator<(Rep value) const noexcept;
+    [[nodiscard]] constexpr bool operator>=(Rep value) const noexcept;
+    [[nodiscard]] constexpr bool operator<=(Rep value) const noexcept;
+    [[nodiscard]] constexpr bool operator==(Rep value) const noexcept;
+    [[nodiscard]] constexpr bool operator!=(Rep value) const noexcept;
 
     [[nodiscard]] constexpr Fixed operator+(Fixed other) const noexcept;
     [[nodiscard]] constexpr Fixed operator-(Fixed other) const noexcept;
-    [[nodiscard]] constexpr Fixed operator*(std::int32_t value) const noexcept;
-    [[nodiscard]] constexpr Fixed operator/(std::int32_t value) const noexcept;
+    [[nodiscard]] constexpr Fixed operator*(Rep value) const noexcept;
+    [[nodiscard]] constexpr Fixed operator/(Rep value) const noexcept;
     constexpr Fixed& operator+=(Fixed other) noexcept;
     constexpr Fixed& operator-=(Fixed other) noexcept;
     constexpr Fixed& operator*=(Fixed other) noexcept;
@@ -90,33 +254,39 @@ public:
     [[nodiscard]] constexpr Fixed sqrtApprox() const noexcept;
     [[nodiscard]] constexpr Fixed invSqrtApprox() const noexcept;
 
-    [[nodiscard]] Fixed sin() const noexcept;
-    [[nodiscard]] Fixed cos() const noexcept;
-    void sinCos(Fixed& sin_result, Fixed& cos_result) const noexcept;
+    // Fixed-domain CORDIC trig (no float).
+    [[nodiscard]] constexpr Fixed sin() const noexcept;
+    [[nodiscard]] constexpr Fixed cos() const noexcept;
+    constexpr void sinCos(Fixed& sin_result, Fixed& cos_result) const noexcept;
 
-    [[nodiscard]] Fixed sinApprox() const noexcept;
-    [[nodiscard]] Fixed cosApprox() const noexcept;
-    void sinCosApprox(Fixed& sin_result, Fixed& cos_result) const noexcept;
+    // Fewer CORDIC iterations than sin/cos.
+    [[nodiscard]] constexpr Fixed sinApprox() const noexcept;
+    [[nodiscard]] constexpr Fixed cosApprox() const noexcept;
+    constexpr void sinCosApprox(Fixed& sin_result, Fixed& cos_result) const noexcept;
 
-    // Shift the raw representation by exp (positive = left / *2^exp).
+    // Float math library path (legacy portable behavior).
+    [[nodiscard]] Fixed sinViaFloat() const noexcept;
+    [[nodiscard]] Fixed cosViaFloat() const noexcept;
+    void sinCosViaFloat(Fixed& sin_result, Fixed& cos_result) const noexcept;
+
     [[nodiscard]] constexpr Fixed scaleByPowerOfTwo(int exp) const noexcept;
 
     [[nodiscard]] constexpr float getFloat() const noexcept;
-    [[nodiscard]] constexpr std::int32_t getInt() const noexcept;
+    [[nodiscard]] constexpr Rep getInt() const noexcept;
 
     [[nodiscard]]
-    constexpr std::int32_t getRawValue() const noexcept
+    constexpr Rep getRawValue() const noexcept
     {
         return x_;
     }
 
-    constexpr void setRawValue(std::int32_t raw_value) noexcept
+    constexpr void setRawValue(Rep raw_value) noexcept
     {
         x_ = raw_value;
     }
 
     [[nodiscard]]
-    static constexpr Fixed fromRaw(std::int32_t raw_value) noexcept
+    static constexpr Fixed fromRaw(Rep raw_value) noexcept
     {
         return Fixed(raw_value, RawTag{});
     }
@@ -124,51 +294,52 @@ public:
     [[nodiscard]]
     static constexpr Fixed getMaxValue() noexcept
     {
-        return fromRaw(std::numeric_limits<std::int32_t>::max());
+        return fromRaw(std::numeric_limits<Rep>::max());
     }
 
     [[nodiscard]]
     static constexpr Fixed getMinValue() noexcept
     {
-        return fromRaw(std::numeric_limits<std::int32_t>::min());
+        return fromRaw(std::numeric_limits<Rep>::min());
     }
 
     [[nodiscard]]
     static constexpr Fixed getEpsilon() noexcept
     {
-        return fromRaw(1);
+        return fromRaw(Rep{1});
     }
 
     [[nodiscard]]
-    static constexpr std::int32_t getFractionalBits() noexcept
+    static constexpr int getFractionalBits() noexcept
     {
         return PRECISION;
     }
 
     [[nodiscard]]
-    static constexpr std::int32_t getIntegralBits() noexcept
+    static constexpr int getIntegralBits() noexcept
     {
-        return 32 - PRECISION;
+        return static_cast<int>(sizeof(Rep) * 8) - PRECISION;
     }
 
     [[nodiscard]]
     friend constexpr Fixed operator*(Fixed lhs, Fixed rhs) noexcept
     {
-        const std::int64_t product =
-            (static_cast<std::int64_t>(lhs.x_) * static_cast<std::int64_t>(rhs.x_)) >> PRECISION;
-        assert(product == static_cast<std::int32_t>(product));
-        return fromRaw(static_cast<std::int32_t>(product));
+        using Wide = detail::WideningT<Rep>;
+        const Wide product = (static_cast<Wide>(lhs.x_) * static_cast<Wide>(rhs.x_)) >> PRECISION;
+        assert(product == static_cast<Rep>(product));
+        return fromRaw(static_cast<Rep>(product));
     }
 
     [[nodiscard]]
     friend constexpr Fixed operator/(Fixed lhs, Fixed rhs) noexcept
     {
-        const std::int64_t numerator = static_cast<std::int64_t>(lhs.x_) << P;
-        const std::int64_t denominator = static_cast<std::int64_t>(rhs.x_);
+        using Wide = detail::WideningT<Rep>;
+        const Wide numerator = static_cast<Wide>(lhs.x_) << P;
+        const Wide denominator = static_cast<Wide>(rhs.x_);
         assert(denominator != 0);
-        const std::int64_t quotient = numerator / denominator;
-        assert(quotient == static_cast<std::int32_t>(quotient));
-        return fromRaw(static_cast<std::int32_t>(quotient));
+        const Wide quotient = numerator / denominator;
+        assert(quotient == static_cast<Rep>(quotient));
+        return fromRaw(static_cast<Rep>(quotient));
     }
 
 private:
@@ -176,440 +347,501 @@ private:
     {
     };
 
-    constexpr Fixed(std::int32_t raw_value, RawTag) noexcept
+    constexpr Fixed(Rep raw_value, RawTag) noexcept
         : x_(raw_value)
     {
     }
 
-    std::int32_t x_{0};
+    static constexpr int CORDIC_ITERS = std::numeric_limits<Rep>::digits;
+    static constexpr int CORDIC_APPROX_ITERS = CORDIC_ITERS / 2;
+
+    Rep x_{0};
 };
 
 
-template <int To, int From>
-    requires(To > 0 && To < 32 && From > 0 && From < 32)
+template <int To, int From, detail::FixedRep Rep = std::int32_t>
+    requires(To > 0 && To < static_cast<int>(sizeof(Rep) * 8) && From > 0 &&
+             From < static_cast<int>(sizeof(Rep) * 8))
 [[nodiscard]]
-constexpr Fixed<To> convert(Fixed<From> value) noexcept
+constexpr Fixed<To, Rep> convert(Fixed<From, Rep> value) noexcept
 {
+    using Wide = detail::WideningT<Rep>;
     if constexpr (To == From)
     {
-        return Fixed<To>::fromRaw(value.getRawValue());
+        return Fixed<To, Rep>::fromRaw(value.getRawValue());
     }
     else if constexpr (To > From)
     {
         constexpr int SHIFT = To - From;
-        const std::int64_t scaled = static_cast<std::int64_t>(value.getRawValue()) << SHIFT;
-        assert(scaled == static_cast<std::int32_t>(scaled));
-        return Fixed<To>::fromRaw(static_cast<std::int32_t>(scaled));
+        const Wide scaled = static_cast<Wide>(value.getRawValue()) << SHIFT;
+        assert(scaled == static_cast<Rep>(scaled));
+        return Fixed<To, Rep>::fromRaw(static_cast<Rep>(scaled));
     }
     else
     {
         constexpr int SHIFT = From - To;
-        return Fixed<To>::fromRaw(value.getRawValue() >> SHIFT);
+        return Fixed<To, Rep>::fromRaw(static_cast<Rep>(value.getRawValue() >> SHIFT));
     }
 }
 
 
-// (a.raw * b.raw) >> (P + Q - Out), i.e. rescale the product into Q(32-Out).Out.
-template <int Out, int P, int Q>
-    requires(Out > 0 && Out < 32 && P > 0 && P < 32 && Q > 0 && Q < 32)
+template <int Out, int P, int Q, detail::FixedRep Rep = std::int32_t>
+    requires(Out > 0 && Out < static_cast<int>(sizeof(Rep) * 8) && P > 0 &&
+             P < static_cast<int>(sizeof(Rep) * 8) && Q > 0 && Q < static_cast<int>(sizeof(Rep) * 8))
 [[nodiscard]]
-constexpr Fixed<Out> mulAs(Fixed<P> lhs, Fixed<Q> rhs) noexcept
+constexpr Fixed<Out, Rep> mulAs(Fixed<P, Rep> lhs, Fixed<Q, Rep> rhs) noexcept
 {
+    using Wide = detail::WideningT<Rep>;
     constexpr int SHIFT = P + Q - Out;
-    static_assert(SHIFT >= 0 && SHIFT < 64);
+    static_assert(SHIFT >= 0);
 
-    const std::int64_t product =
-        static_cast<std::int64_t>(lhs.getRawValue()) * static_cast<std::int64_t>(rhs.getRawValue());
-    const std::int64_t scaled = product >> SHIFT;
-    assert(scaled == static_cast<std::int32_t>(scaled));
-    return Fixed<Out>::fromRaw(static_cast<std::int32_t>(scaled));
+    const Wide product = static_cast<Wide>(lhs.getRawValue()) * static_cast<Wide>(rhs.getRawValue());
+    const Wide scaled = product >> SHIFT;
+    assert(scaled == static_cast<Rep>(scaled));
+    return Fixed<Out, Rep>::fromRaw(static_cast<Rep>(scaled));
 }
 
 
-// (a.raw << (Q - P + Out)) / b.raw, i.e. rescale the quotient into Q(32-Out).Out.
-template <int Out, int P, int Q>
-    requires(Out > 0 && Out < 32 && P > 0 && P < 32 && Q > 0 && Q < 32)
+template <int Out, int P, int Q, detail::FixedRep Rep = std::int32_t>
+    requires(Out > 0 && Out < static_cast<int>(sizeof(Rep) * 8) && P > 0 &&
+             P < static_cast<int>(sizeof(Rep) * 8) && Q > 0 && Q < static_cast<int>(sizeof(Rep) * 8))
 [[nodiscard]]
-constexpr Fixed<Out> divAs(Fixed<P> lhs, Fixed<Q> rhs) noexcept
+constexpr Fixed<Out, Rep> divAs(Fixed<P, Rep> lhs, Fixed<Q, Rep> rhs) noexcept
 {
+    using Wide = detail::WideningT<Rep>;
     constexpr int SHIFT = Q - P + Out;
-    static_assert(SHIFT >= 0 && SHIFT < 64);
+    static_assert(SHIFT >= 0);
 
-    const std::int64_t denominator = static_cast<std::int64_t>(rhs.getRawValue());
+    const Wide denominator = static_cast<Wide>(rhs.getRawValue());
     assert(denominator != 0);
-    const std::int64_t numerator = static_cast<std::int64_t>(lhs.getRawValue()) << SHIFT;
-    const std::int64_t quotient = numerator / denominator;
-    assert(quotient == static_cast<std::int32_t>(quotient));
-    return Fixed<Out>::fromRaw(static_cast<std::int32_t>(quotient));
+    const Wide numerator = static_cast<Wide>(lhs.getRawValue()) << SHIFT;
+    const Wide quotient = numerator / denominator;
+    assert(quotient == static_cast<Rep>(quotient));
+    return Fixed<Out, Rep>::fromRaw(static_cast<Rep>(quotient));
 }
 
 
-template <int P>
-    requires(P > 0 && P < 32)
+template <int P, detail::FixedRep Rep = std::int32_t>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
 [[nodiscard]]
-constexpr Fixed<P> mulAdd(Fixed<P> a, Fixed<P> b, Fixed<P> c) noexcept
+constexpr Fixed<P, Rep> mulAdd(Fixed<P, Rep> a, Fixed<P, Rep> b, Fixed<P, Rep> c) noexcept
 {
-    const std::int64_t product =
-        (static_cast<std::int64_t>(a.getRawValue()) * static_cast<std::int64_t>(b.getRawValue())) >> P;
-    const std::int64_t sum = product + static_cast<std::int64_t>(c.getRawValue());
-    assert(sum == static_cast<std::int32_t>(sum));
-    return Fixed<P>::fromRaw(static_cast<std::int32_t>(sum));
+    using Wide = detail::WideningT<Rep>;
+    const Wide product =
+        (static_cast<Wide>(a.getRawValue()) * static_cast<Wide>(b.getRawValue())) >> P;
+    const Wide sum = product + static_cast<Wide>(c.getRawValue());
+    assert(sum == static_cast<Rep>(sum));
+    return Fixed<P, Rep>::fromRaw(static_cast<Rep>(sum));
 }
 
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr float Fixed<P>::getFloat() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr float Fixed<P, Rep>::getFloat() const noexcept
 {
     return detail::fixedToFloat(x_, P);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-inline Fixed<P>::Fixed(float value) noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+inline Fixed<P, Rep>::Fixed(float value) noexcept
 {
-    assert(std::fabs(value) <= Fixed<P>::getMaxValue().getFloat());
-    x_ = detail::floatToFixed(value, P);
+    assert(std::fabs(value) <= Fixed::getMaxValue().getFloat());
+    x_ = detail::floatToFixed<Rep>(value, P);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-inline Fixed<P>::Fixed(double value) noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+inline Fixed<P, Rep>::Fixed(double value) noexcept
 {
-    assert(std::fabs(value) <= Fixed<P>::getMaxValue().getFloat());
-    x_ = detail::floatToFixed(static_cast<float>(value), P);
+    assert(std::fabs(value) <= Fixed::getMaxValue().getFloat());
+    x_ = detail::floatToFixed<Rep>(static_cast<float>(value), P);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P>::Fixed(std::int32_t value) noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep>::Fixed(Rep value) noexcept
 {
-    assert(static_cast<float>(value >= 0 ? value : -value) <= Fixed<P>::getMaxValue().getFloat());
+    using Wide = detail::WideningT<Rep>;
+    const Wide abs_value = value < 0 ? -static_cast<Wide>(value) : static_cast<Wide>(value);
+    assert(static_cast<float>(abs_value) <= Fixed::getMaxValue().getFloat());
     x_ = detail::intToFixed(value, P);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P>::Fixed(std::int32_t numerator, std::int32_t denominator) noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep>::Fixed(Rep numerator, Rep denominator) noexcept
 {
-    const auto abs64 = [](std::int64_t value) constexpr noexcept
+    using Wide = detail::WideningT<Rep>;
+    const auto abs_wide = [](Wide value) constexpr noexcept
     {
         return value < 0 ? -value : value;
     };
-    assert(abs64(numerator) < (std::int64_t{1} << (31 - P)) * abs64(denominator));
+    constexpr int BITS = static_cast<int>(sizeof(Rep) * 8);
+    assert(abs_wide(numerator) < (Wide{1} << (BITS - 1 - P)) * abs_wide(denominator));
     *this = fromRaw(numerator) / fromRaw(denominator);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr std::int32_t Fixed<P>::getInt() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Rep Fixed<P, Rep>::getInt() const noexcept
 {
     return detail::fixedToInt(x_, P);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-inline Fixed<P>& Fixed<P>::operator=(float value) noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+inline Fixed<P, Rep>& Fixed<P, Rep>::operator=(float value) noexcept
 {
-    assert(std::fabs(value) <= Fixed<P>::getMaxValue().getFloat());
-    x_ = detail::floatToFixed(value, P);
+    assert(std::fabs(value) <= Fixed::getMaxValue().getFloat());
+    x_ = detail::floatToFixed<Rep>(value, P);
     return *this;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-inline Fixed<P>& Fixed<P>::operator=(double value) noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+inline Fixed<P, Rep>& Fixed<P, Rep>::operator=(double value) noexcept
 {
-    assert(std::fabs(value) <= Fixed<P>::getMaxValue().getFloat());
-    x_ = detail::floatToFixed(static_cast<float>(value), P);
+    assert(std::fabs(value) <= Fixed::getMaxValue().getFloat());
+    x_ = detail::floatToFixed<Rep>(static_cast<float>(value), P);
     return *this;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P>& Fixed<P>::operator=(std::int32_t value) noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep>& Fixed<P, Rep>::operator=(Rep value) noexcept
 {
-    assert(static_cast<float>(value >= 0 ? value : -value) <= Fixed<P>::getMaxValue().getFloat());
+    using Wide = detail::WideningT<Rep>;
+    const Wide abs_value = value < 0 ? -static_cast<Wide>(value) : static_cast<Wide>(value);
+    assert(static_cast<float>(abs_value) <= Fixed::getMaxValue().getFloat());
     x_ = detail::intToFixed(value, P);
     return *this;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr bool Fixed<P>::operator>(std::int32_t value) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr bool Fixed<P, Rep>::operator>(Rep value) const noexcept
 {
     return *this > Fixed{value};
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr bool Fixed<P>::operator<(std::int32_t value) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr bool Fixed<P, Rep>::operator<(Rep value) const noexcept
 {
     return *this < Fixed{value};
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr bool Fixed<P>::operator>=(std::int32_t value) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr bool Fixed<P, Rep>::operator>=(Rep value) const noexcept
 {
     return *this >= Fixed{value};
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr bool Fixed<P>::operator<=(std::int32_t value) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr bool Fixed<P, Rep>::operator<=(Rep value) const noexcept
 {
     return *this <= Fixed{value};
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr bool Fixed<P>::operator==(std::int32_t value) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr bool Fixed<P, Rep>::operator==(Rep value) const noexcept
 {
     return *this == Fixed{value};
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr bool Fixed<P>::operator!=(std::int32_t value) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr bool Fixed<P, Rep>::operator!=(Rep value) const noexcept
 {
     return *this != Fixed{value};
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::operator+(Fixed other) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::operator+(Fixed other) const noexcept
 {
-    const std::int64_t sum = static_cast<std::int64_t>(x_) + static_cast<std::int64_t>(other.x_);
-    assert(sum == static_cast<std::int32_t>(sum));
-    return fromRaw(static_cast<std::int32_t>(sum));
+    using Wide = detail::WideningT<Rep>;
+    const Wide sum = static_cast<Wide>(x_) + static_cast<Wide>(other.x_);
+    assert(sum == static_cast<Rep>(sum));
+    return fromRaw(static_cast<Rep>(sum));
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::operator-(Fixed other) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::operator-(Fixed other) const noexcept
 {
-    const std::int64_t difference = static_cast<std::int64_t>(x_) - static_cast<std::int64_t>(other.x_);
-    assert(difference == static_cast<std::int32_t>(difference));
-    return fromRaw(static_cast<std::int32_t>(difference));
+    using Wide = detail::WideningT<Rep>;
+    const Wide difference = static_cast<Wide>(x_) - static_cast<Wide>(other.x_);
+    assert(difference == static_cast<Rep>(difference));
+    return fromRaw(static_cast<Rep>(difference));
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P>& Fixed<P>::operator+=(Fixed other) noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep>& Fixed<P, Rep>::operator+=(Fixed other) noexcept
 {
     *this = *this + other;
     return *this;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P>& Fixed<P>::operator-=(Fixed other) noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep>& Fixed<P, Rep>::operator-=(Fixed other) noexcept
 {
     *this = *this - other;
     return *this;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::operator-() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::operator-() const noexcept
 {
-    // |INT_MIN| is one greater than INT_MAX, so map INT_MIN to -INT_MAX.
-    const std::int32_t clamped = x_ < -std::numeric_limits<std::int32_t>::max()
-                                     ? -std::numeric_limits<std::int32_t>::max()
-                                     : x_;
-    return fromRaw(-clamped);
+    const Rep limit = std::numeric_limits<Rep>::max();
+    const Rep clamped = x_ < -limit ? -limit : x_;
+    return fromRaw(static_cast<Rep>(-clamped));
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::operator*(std::int32_t value) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::operator*(Rep value) const noexcept
 {
-    return fromRaw(x_ * value);
+    return fromRaw(static_cast<Rep>(x_ * value));
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::operator/(std::int32_t value) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::operator/(Rep value) const noexcept
 {
     assert(value != 0);
-    return fromRaw(x_ / value);
+    return fromRaw(static_cast<Rep>(x_ / value));
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::abs() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::abs() const noexcept
 {
-    return (*this < 0) ? -(*this) : *this;
+    return (*this < Rep{0}) ? -(*this) : *this;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::round() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::round() const noexcept
 {
-    constexpr std::int32_t HALF = 1 << (P - 1);
-    constexpr std::int32_t MASK = static_cast<std::int32_t>(0xffffffffu << P);
-    return fromRaw((x_ + HALF) & MASK);
+    using Unsigned = std::make_unsigned_t<Rep>;
+    constexpr Unsigned HALF = Unsigned{1} << (P - 1);
+    constexpr Unsigned MASK = static_cast<Unsigned>(~Unsigned{0} << P);
+    const Unsigned rounded = (static_cast<Unsigned>(x_) + HALF) & MASK;
+    return fromRaw(static_cast<Rep>(rounded));
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::floor() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::floor() const noexcept
 {
-    constexpr std::int32_t MASK = static_cast<std::int32_t>(0xffffffffu << P);
-    return fromRaw(x_ & MASK);
+    using Unsigned = std::make_unsigned_t<Rep>;
+    constexpr Unsigned MASK = static_cast<Unsigned>(~Unsigned{0} << P);
+    return fromRaw(static_cast<Rep>(static_cast<Unsigned>(x_) & MASK));
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::ceil() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::ceil() const noexcept
 {
-    // floor truncates toward -infinity; ceil(x) = -floor(-x).
     return -((-(*this)).floor());
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P>& Fixed<P>::operator*=(Fixed other) noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep>& Fixed<P, Rep>::operator*=(Fixed other) noexcept
 {
     *this = (*this) * other;
     return *this;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::square() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::square() const noexcept
 {
     const Fixed product = (*this) * (*this);
     assert(product.x_ >= 0);
     return product;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::inverse() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::inverse() const noexcept
 {
-    return Fixed{1} / (*this);
+    return Fixed{Rep{1}} / (*this);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::sqrt() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::sqrt() const noexcept
 {
     assert(x_ >= 0);
-    Fixed result = fromRaw((x_ + (1 << PRECISION)) >> 1);
+    Fixed result = fromRaw(static_cast<Rep>((x_ + (Rep{1} << PRECISION)) >> 1));
     for (int i = 0; i < PRECISION; ++i)
     {
-        result = fromRaw((result.x_ + ((*this) / result).x_) >> 1);
+        result = fromRaw(static_cast<Rep>((result.x_ + ((*this) / result).x_) >> 1));
     }
     return result;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::invSqrt() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::invSqrt() const noexcept
 {
     assert(x_ >= 0);
-    return Fixed{1} / sqrt();
+    return Fixed{Rep{1}} / sqrt();
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::inverseApprox() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::inverseApprox() const noexcept
 {
     return inverse();
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::sqrtApprox() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::sqrtApprox() const noexcept
 {
     assert(x_ >= 0);
-    Fixed result = fromRaw((x_ + (1 << PRECISION)) >> 1);
+    Fixed result = fromRaw(static_cast<Rep>((x_ + (Rep{1} << PRECISION)) >> 1));
     for (int i = 0; i < PRECISION / 2; ++i)
     {
-        result = fromRaw((result.x_ + ((*this) / result).x_) >> 1);
+        result = fromRaw(static_cast<Rep>((result.x_ + ((*this) / result).x_) >> 1));
     }
     return result;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::invSqrtApprox() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::invSqrtApprox() const noexcept
 {
     assert(x_ >= 0);
-    return Fixed{1} / sqrtApprox();
+    return Fixed{Rep{1}} / sqrtApprox();
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-constexpr Fixed<P> Fixed<P>::scaleByPowerOfTwo(int exp) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::scaleByPowerOfTwo(int exp) const noexcept
 {
+    using Wide = detail::WideningT<Rep>;
     if (exp >= 0)
     {
-        const std::int64_t scaled = static_cast<std::int64_t>(x_) << exp;
-        assert(scaled == static_cast<std::int32_t>(scaled));
-        return fromRaw(static_cast<std::int32_t>(scaled));
+        const Wide scaled = static_cast<Wide>(x_) << exp;
+        assert(scaled == static_cast<Rep>(scaled));
+        return fromRaw(static_cast<Rep>(scaled));
     }
 
-    return fromRaw(x_ >> -exp);
+    return fromRaw(static_cast<Rep>(x_ >> -exp));
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-inline Fixed<P> Fixed<P>::sin() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::sin() const noexcept
 {
-    return fromRaw(detail::floatToFixed(std::sin(getFloat()), P));
+    Rep sin_raw{};
+    Rep cos_raw{};
+    detail::cordicSinCos<P, Rep, CORDIC_ITERS>(x_, sin_raw, cos_raw);
+    (void)cos_raw;
+    return fromRaw(sin_raw);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-inline Fixed<P> Fixed<P>::cos() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::cos() const noexcept
 {
-    return fromRaw(detail::floatToFixed(std::cos(getFloat()), P));
+    Rep sin_raw{};
+    Rep cos_raw{};
+    detail::cordicSinCos<P, Rep, CORDIC_ITERS>(x_, sin_raw, cos_raw);
+    (void)sin_raw;
+    return fromRaw(cos_raw);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-inline void Fixed<P>::sinCos(Fixed& sin_result, Fixed& cos_result) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr void Fixed<P, Rep>::sinCos(Fixed& sin_result, Fixed& cos_result) const noexcept
 {
-    sin_result = fromRaw(detail::floatToFixed(std::sin(getFloat()), P));
-    cos_result = fromRaw(detail::floatToFixed(std::cos(getFloat()), P));
+    Rep sin_raw{};
+    Rep cos_raw{};
+    detail::cordicSinCos<P, Rep, CORDIC_ITERS>(x_, sin_raw, cos_raw);
+    sin_result = fromRaw(sin_raw);
+    cos_result = fromRaw(cos_raw);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-inline Fixed<P> Fixed<P>::sinApprox() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::sinApprox() const noexcept
 {
-    return sin();
+    Rep sin_raw{};
+    Rep cos_raw{};
+    detail::cordicSinCos<P, Rep, CORDIC_APPROX_ITERS>(x_, sin_raw, cos_raw);
+    (void)cos_raw;
+    return fromRaw(sin_raw);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-inline Fixed<P> Fixed<P>::cosApprox() const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::cosApprox() const noexcept
 {
-    return cos();
+    Rep sin_raw{};
+    Rep cos_raw{};
+    detail::cordicSinCos<P, Rep, CORDIC_APPROX_ITERS>(x_, sin_raw, cos_raw);
+    (void)sin_raw;
+    return fromRaw(cos_raw);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
-inline void Fixed<P>::sinCosApprox(Fixed& sin_result, Fixed& cos_result) const noexcept
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr void Fixed<P, Rep>::sinCosApprox(Fixed& sin_result, Fixed& cos_result) const noexcept
 {
-    sinCos(sin_result, cos_result);
+    Rep sin_raw{};
+    Rep cos_raw{};
+    detail::cordicSinCos<P, Rep, CORDIC_APPROX_ITERS>(x_, sin_raw, cos_raw);
+    sin_result = fromRaw(sin_raw);
+    cos_result = fromRaw(cos_raw);
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+inline Fixed<P, Rep> Fixed<P, Rep>::sinViaFloat() const noexcept
+{
+    return fromRaw(detail::floatToFixed<Rep>(std::sin(getFloat()), P));
+}
+
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+inline Fixed<P, Rep> Fixed<P, Rep>::cosViaFloat() const noexcept
+{
+    return fromRaw(detail::floatToFixed<Rep>(std::cos(getFloat()), P));
+}
+
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+inline void Fixed<P, Rep>::sinCosViaFloat(Fixed& sin_result, Fixed& cos_result) const noexcept
+{
+    sin_result = fromRaw(detail::floatToFixed<Rep>(std::sin(getFloat()), P));
+    cos_result = fromRaw(detail::floatToFixed<Rep>(std::cos(getFloat()), P));
+}
+
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
 [[nodiscard]]
-constexpr Fixed<P> operator-(std::int32_t value, Fixed<P> fixed) noexcept
+constexpr Fixed<P, Rep> operator-(Rep value, Fixed<P, Rep> fixed) noexcept
 {
-    return Fixed<P>{value} - fixed;
+    return Fixed<P, Rep>{value} - fixed;
 }
 
-template <int P>
-    requires(P > 0 && P < 32)
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
 [[nodiscard]]
-constexpr Fixed<P> operator*(std::int32_t value, Fixed<P> fixed) noexcept
+constexpr Fixed<P, Rep> operator*(Rep value, Fixed<P, Rep> fixed) noexcept
 {
     return fixed * value;
 }
@@ -618,9 +850,9 @@ constexpr Fixed<P> operator*(std::int32_t value, Fixed<P> fixed) noexcept
 namespace std
 {
 
-template <int P>
-    requires(P > 0 && P < 32)
-class numeric_limits<Fixed<P>>
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+class numeric_limits<Fixed<P, Rep>>
 {
 public:
     static constexpr bool is_specialized = true;
@@ -636,8 +868,8 @@ public:
     static constexpr bool is_iec559 = false;
     static constexpr bool is_bounded = true;
     static constexpr bool is_modulo = false;
-    static constexpr int digits = 31;
-    static constexpr int digits10 = 9;
+    static constexpr int digits = numeric_limits<Rep>::digits;
+    static constexpr int digits10 = numeric_limits<Rep>::digits10;
     static constexpr int max_digits10 = 0;
     static constexpr int radix = 2;
     static constexpr int min_exponent = 0;
@@ -648,57 +880,57 @@ public:
     static constexpr bool tinyness_before = false;
 
     [[nodiscard]]
-    static constexpr Fixed<P> min() noexcept
+    static constexpr Fixed<P, Rep> min() noexcept
     {
-        return Fixed<P>::getMinValue();
+        return Fixed<P, Rep>::getMinValue();
     }
 
     [[nodiscard]]
-    static constexpr Fixed<P> lowest() noexcept
+    static constexpr Fixed<P, Rep> lowest() noexcept
     {
-        return Fixed<P>::getMinValue();
+        return Fixed<P, Rep>::getMinValue();
     }
 
     [[nodiscard]]
-    static constexpr Fixed<P> max() noexcept
+    static constexpr Fixed<P, Rep> max() noexcept
     {
-        return Fixed<P>::getMaxValue();
+        return Fixed<P, Rep>::getMaxValue();
     }
 
     [[nodiscard]]
-    static constexpr Fixed<P> epsilon() noexcept
+    static constexpr Fixed<P, Rep> epsilon() noexcept
     {
-        return Fixed<P>::getEpsilon();
+        return Fixed<P, Rep>::getEpsilon();
     }
 
     [[nodiscard]]
-    static constexpr Fixed<P> round_error() noexcept
+    static constexpr Fixed<P, Rep> round_error() noexcept
     {
-        return Fixed<P>::fromRaw(1 << (P - 1));
+        return Fixed<P, Rep>::fromRaw(Rep{1} << (P - 1));
     }
 
     [[nodiscard]]
-    static constexpr Fixed<P> infinity() noexcept
+    static constexpr Fixed<P, Rep> infinity() noexcept
     {
-        return Fixed<P>{};
+        return Fixed<P, Rep>{};
     }
 
     [[nodiscard]]
-    static constexpr Fixed<P> quiet_NaN() noexcept
+    static constexpr Fixed<P, Rep> quiet_NaN() noexcept
     {
-        return Fixed<P>{};
+        return Fixed<P, Rep>{};
     }
 
     [[nodiscard]]
-    static constexpr Fixed<P> signaling_NaN() noexcept
+    static constexpr Fixed<P, Rep> signaling_NaN() noexcept
     {
-        return Fixed<P>{};
+        return Fixed<P, Rep>{};
     }
 
     [[nodiscard]]
-    static constexpr Fixed<P> denorm_min() noexcept
+    static constexpr Fixed<P, Rep> denorm_min() noexcept
     {
-        return Fixed<P>::getEpsilon();
+        return Fixed<P, Rep>::getEpsilon();
     }
 };
 

@@ -810,3 +810,16 @@ TEST_CASE("Fixed mulAdd, scaleByPowerOfTwo, ceil on integers, and numeric_limits
     REQUIRE(Limits::max().getRawValue() == Fixed16::getMaxValue().getRawValue());
     REQUIRE(Limits::min().getRawValue() == Fixed16::getMinValue().getRawValue());
 }
+
+TEST_CASE("Fixed Rep parameter and viaFloat trig")
+{
+    using Q88 = Fixed<8, std::int16_t>;
+    const Q88 x{std::int16_t{3}};
+    const Q88 y{std::int16_t{2}};
+    REQUIRE((x * y).getInt() == 6);
+    REQUIRE(std::fabs(x.getFloat() - 3.0f) < Q88::getEpsilon().getFloat());
+
+    const Fixed16 angle(0.5f);
+    REQUIRE(std::fabs(angle.sinViaFloat().getFloat() - std::sin(0.5f)) < trigTolerance<Fixed16>());
+    REQUIRE(std::fabs(angle.cosViaFloat().getFloat() - std::cos(0.5f)) < trigTolerance<Fixed16>());
+}
