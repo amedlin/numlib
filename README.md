@@ -58,7 +58,7 @@ sudo dnf install -y cmake gcc-c++ ninja-build
 1. Select a CMake kit for your machine (MSVC, Clang, or GCC).
 2. Configure with the **default** preset (CMake Tools status bar, or Command Palette → **CMake: Select Configure Preset**).
 3. Build (status bar **Build**, or **CMake: Build**).
-4. Set the launch/debug target to `test_isqrt` or `perf`, then Run or Debug (F5). Launch configs **Debug test_isqrt** and **Debug perf** are provided.
+4. Set the launch/debug target to `test_isqrt`, `test_fixed`, or `perf`, then Run or Debug (F5). Launch configs **Debug test_isqrt**, **Debug test_fixed**, and **Debug perf** are provided.
 
 ## Configure and build (CLI)
 
@@ -81,10 +81,12 @@ Run the binaries from `build/`:
 ```bash
 # Windows (multi-config)
 build\Debug\test_isqrt.exe
+build\Debug\test_fixed.exe
 build\Release\perf.exe
 
 # macOS / Linux (single-config; tree matches the preset you configured)
 ./build/test_isqrt
+./build/test_fixed
 ./build/perf
 ```
 
@@ -109,6 +111,7 @@ In your sources (C++20):
 
 ```cpp
 #include "int/isqrt.h"
+#include "fixedpt/fixed_types.h"
 ```
 
 ## Add implementation files

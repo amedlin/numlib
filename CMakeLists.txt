@@ -20,6 +20,7 @@ FetchContent_MakeAvailable(Catch2)
 add_library(numlib STATIC)
 target_sources(numlib PRIVATE
     numlib.cpp
+    fixedpt/fixed.cpp
 )
 target_include_directories(numlib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -36,6 +37,9 @@ endif()
 add_executable(test_isqrt testing/test_isqrt.cpp)
 target_link_libraries(test_isqrt PRIVATE numlib Catch2::Catch2WithMain)
 
+add_executable(test_fixed testing/test_fixed.cpp)
+target_link_libraries(test_fixed PRIVATE numlib Catch2::Catch2WithMain)
+
 add_executable(perf testing/perf.cpp)
 target_link_libraries(perf PRIVATE numlib)
 
@@ -48,8 +52,10 @@ endfunction()
 
 numlib_set_warnings(numlib)
 numlib_set_warnings(test_isqrt)
+numlib_set_warnings(test_fixed)
 numlib_set_warnings(perf)
 
 enable_testing()
 include(Catch)
 catch_discover_tests(test_isqrt TEST_SPEC "~[.exhaustive]")
+catch_discover_tests(test_fixed TEST_SPEC "~[.exhaustive]")
