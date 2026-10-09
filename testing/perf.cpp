@@ -7,8 +7,10 @@
 #include <limits>
 #include <random>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
+#include "fixedpt/fixed_types.h"
 #include "int/isqrt.h"
 
 namespace
@@ -68,6 +70,198 @@ NUMLIB_NOINLINE std::uint64_t runConstexprSqrtBatch(
     return sum;
 }
 
+NUMLIB_NOINLINE float runFloatAddBatch(
+    const float* a,
+    const float* b,
+    std::size_t count) noexcept
+{
+    float sum = 0.0f;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += a[i] + b[i];
+    }
+
+    return sum;
+}
+
+NUMLIB_NOINLINE float runFixedAddBatch(
+    const Fixed16* a,
+    const Fixed16* b,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += (a[i] + b[i]).getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runFloatMulBatch(
+    const float* a,
+    const float* b,
+    std::size_t count) noexcept
+{
+    float sum = 0.0f;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += a[i] * b[i];
+    }
+
+    return sum;
+}
+
+NUMLIB_NOINLINE float runFixedMulBatch(
+    const Fixed16* a,
+    const Fixed16* b,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += (a[i] * b[i]).getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runFloatDivBatch(
+    const float* a,
+    const float* b,
+    std::size_t count) noexcept
+{
+    float sum = 0.0f;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += a[i] / b[i];
+    }
+
+    return sum;
+}
+
+NUMLIB_NOINLINE float runFixedDivBatch(
+    const Fixed16* a,
+    const Fixed16* b,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += (a[i] / b[i]).getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runFloatMulAddBatch(
+    const float* a,
+    const float* b,
+    const float* c,
+    std::size_t count) noexcept
+{
+    float sum = 0.0f;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += a[i] * b[i] + c[i];
+    }
+
+    return sum;
+}
+
+NUMLIB_NOINLINE float runFixedMulAddBatch(
+    const Fixed16* a,
+    const Fixed16* b,
+    const Fixed16* c,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += mulAdd(a[i], b[i], c[i]).getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runFloatFixedSqrtBatch(
+    const float* values,
+    std::size_t count) noexcept
+{
+    float sum = 0.0f;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += std::sqrt(values[i]);
+    }
+
+    return sum;
+}
+
+NUMLIB_NOINLINE float runFixedSqrtBatch(
+    const Fixed16* values,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += values[i].sqrt().getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runFloatSinBatch(
+    const float* values,
+    std::size_t count) noexcept
+{
+    float sum = 0.0f;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += std::sin(values[i]);
+    }
+
+    return sum;
+}
+
+NUMLIB_NOINLINE float runFixedSinBatch(
+    const Fixed16* values,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += values[i].sin().getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runFixedSinViaFloatBatch(
+    const Fixed16* values,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += values[i].sinViaFloat().getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
 template <typename Fn>
 double timeBatchNs(Fn&& fn, int warmup_runs, int sample_runs)
 {
@@ -109,6 +303,27 @@ void printResult(
               << "  (sink=" << sink << ")\n";
 }
 
+template <typename Fn>
+void runNamed(
+    std::string_view name,
+    Fn&& fn,
+    int warmup_runs,
+    int sample_runs,
+    int sample_count)
+{
+    using Result = std::decay_t<decltype(fn())>;
+    Result sink{};
+    const double ns = timeBatchNs(
+        [&]
+        {
+            sink = fn();
+            return sink;
+        },
+        warmup_runs,
+        sample_runs);
+    printResult(name, ns, sample_count, static_cast<double>(sink));
+}
+
 } // namespace
 
 int main()
@@ -122,11 +337,44 @@ int main()
         0,
         std::numeric_limits<std::int32_t>::max()};
 
+    // Values stay inside Fixed16 range for add/mul/div/sqrt/sin.
+    std::uniform_real_distribution<float> fixed_dist{-50.0f, 50.0f};
+    std::uniform_real_distribution<float> positive_dist{0.25f, 50.0f};
+    std::uniform_real_distribution<float> divisor_dist{0.5f, 25.0f};
+    std::uniform_real_distribution<float> angle_dist{-8.0f, 8.0f};
+
     std::vector<std::int32_t> values(static_cast<std::size_t>(sample_count));
+    std::vector<float> float_a(static_cast<std::size_t>(sample_count));
+    std::vector<float> float_b(static_cast<std::size_t>(sample_count));
+    std::vector<float> float_c(static_cast<std::size_t>(sample_count));
+    std::vector<float> float_positive(static_cast<std::size_t>(sample_count));
+    std::vector<float> float_divisor(static_cast<std::size_t>(sample_count));
+    std::vector<float> float_angle(static_cast<std::size_t>(sample_count));
+    std::vector<Fixed16> fixed_a(static_cast<std::size_t>(sample_count));
+    std::vector<Fixed16> fixed_b(static_cast<std::size_t>(sample_count));
+    std::vector<Fixed16> fixed_c(static_cast<std::size_t>(sample_count));
+    std::vector<Fixed16> fixed_positive(static_cast<std::size_t>(sample_count));
+    std::vector<Fixed16> fixed_divisor(static_cast<std::size_t>(sample_count));
+    std::vector<Fixed16> fixed_angle(static_cast<std::size_t>(sample_count));
 
     for (int i = 0; i < sample_count; ++i)
     {
-        values[static_cast<std::size_t>(i)] = dist(rng);
+        const std::size_t index = static_cast<std::size_t>(i);
+        values[index] = dist(rng);
+
+        float_a[index] = fixed_dist(rng);
+        float_b[index] = fixed_dist(rng);
+        float_c[index] = fixed_dist(rng);
+        float_positive[index] = positive_dist(rng);
+        float_divisor[index] = divisor_dist(rng);
+        float_angle[index] = angle_dist(rng);
+
+        fixed_a[index] = Fixed16{float_a[index]};
+        fixed_b[index] = Fixed16{float_b[index]};
+        fixed_c[index] = Fixed16{float_c[index]};
+        fixed_positive[index] = Fixed16{float_positive[index]};
+        fixed_divisor[index] = Fixed16{float_divisor[index]};
+        fixed_angle[index] = Fixed16{float_angle[index]};
     }
 
     const std::int32_t* data = values.data();
@@ -135,46 +383,160 @@ int main()
     std::cout << "numlib perf  samples=" << sample_count
               << "  warmup_runs=" << warmup_runs
               << "  timed_runs=" << sample_runs
-              << "  (median of timed runs)\n";
+              << "  (median of timed runs)\n\n";
 
-    {
-        float sink = 0.0f;
-        const double ns = timeBatchNs(
-            [&]
-            {
-                sink = runFloatSqrtBatch(data, count);
-                return sink;
-            },
-            warmup_runs,
-            sample_runs);
-        printResult("int-to-float + std::sqrt", ns, sample_count, sink);
-    }
+    std::cout << "integer sqrt\n";
+    runNamed(
+        "int-to-float + std::sqrt",
+        [&]
+        {
+            return runFloatSqrtBatch(data, count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        "integerSqrt",
+        [&]
+        {
+            return runIntegerSqrtBatch(data, count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        "detail::constexprSqrt",
+        [&]
+        {
+            return static_cast<double>(runConstexprSqrtBatch(data, count));
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
 
-    {
-        int sink = 0;
-        const double ns = timeBatchNs(
-            [&]
-            {
-                sink = runIntegerSqrtBatch(data, count);
-                return sink;
-            },
-            warmup_runs,
-            sample_runs);
-        printResult("integerSqrt", ns, sample_count, sink);
-    }
+    std::cout << "\nFixed16 vs float (pre-converted inputs)\n";
+    runNamed(
+        "float add",
+        [&]
+        {
+            return runFloatAddBatch(float_a.data(), float_b.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        "Fixed16 add",
+        [&]
+        {
+            return runFixedAddBatch(fixed_a.data(), fixed_b.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
 
-    {
-        std::uint64_t sink = 0;
-        const double ns = timeBatchNs(
-            [&]
-            {
-                sink = runConstexprSqrtBatch(data, count);
-                return sink;
-            },
-            warmup_runs,
-            sample_runs);
-        printResult("detail::constexprSqrt", ns, sample_count, static_cast<double>(sink));
-    }
+    runNamed(
+        "float mul",
+        [&]
+        {
+            return runFloatMulBatch(float_a.data(), float_b.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        "Fixed16 mul",
+        [&]
+        {
+            return runFixedMulBatch(fixed_a.data(), fixed_b.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+
+    runNamed(
+        "float div",
+        [&]
+        {
+            return runFloatDivBatch(float_a.data(), float_divisor.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        "Fixed16 div",
+        [&]
+        {
+            return runFixedDivBatch(fixed_a.data(), fixed_divisor.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+
+    runNamed(
+        "float mul-add",
+        [&]
+        {
+            return runFloatMulAddBatch(float_a.data(), float_b.data(), float_c.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        "Fixed16 mulAdd",
+        [&]
+        {
+            return runFixedMulAddBatch(fixed_a.data(), fixed_b.data(), fixed_c.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+
+    runNamed(
+        "float sqrt",
+        [&]
+        {
+            return runFloatFixedSqrtBatch(float_positive.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        "Fixed16 sqrt",
+        [&]
+        {
+            return runFixedSqrtBatch(fixed_positive.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+
+    runNamed(
+        "float sin",
+        [&]
+        {
+            return runFloatSinBatch(float_angle.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        "Fixed16 sin (CORDIC)",
+        [&]
+        {
+            return runFixedSinBatch(fixed_angle.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        "Fixed16 sinViaFloat",
+        [&]
+        {
+            return runFixedSinViaFloatBatch(fixed_angle.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
 
     return 0;
 }
