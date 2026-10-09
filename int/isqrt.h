@@ -177,9 +177,9 @@ constexpr std::uint64_t mul64Shift(std::uint64_t a, std::uint64_t b, unsigned sh
     return (hi << (64u - shift)) | (lo >> shift);
 }
 
-constexpr bool sqrtTable32EntryOk(std::uint32_t c, std::uint64_t d) noexcept
+// C = floor(2^37 / sqrt(d)) iff c^2 * d <= 2^74.
+inline bool sqrtTable32EntryOk(std::uint32_t c, std::uint64_t d) noexcept
 {
-    // Accept c iff c^2 * d <= 2^74 (i.e. c <= 2^37 / sqrt(d)).
     const std::uint64_t c2 =
         static_cast<std::uint64_t>(c) * static_cast<std::uint64_t>(c);
     std::uint64_t hi = 0;
@@ -189,17 +189,18 @@ constexpr bool sqrtTable32EntryOk(std::uint32_t c, std::uint64_t d) noexcept
     return hi < 1024ull || (hi == 1024ull && lo == 0ull);
 }
 
-constexpr std::array<std::uint32_t, SQRT_TABLE_SIZE> makeSqrtTable32() noexcept
+// Runtime-built (Clang rejects constexpr generation of this table). Kept as an
+// inline const global — not a function-local static — so the hot path is a
+// plain load with no per-call init guard.
+[[nodiscard]]
+inline std::array<std::uint32_t, SQRT_TABLE_SIZE> makeSqrtTable32() noexcept
 {
-    std::array<std::uint32_t, SQRT_TABLE_SIZE> table{};
+    std::array<std::uint32_t, SQRT_TABLE_SIZE> built{};
 
-    // C = floor(2^37 / sqrt(d)), d = 2K+1, same centres as the 16-bit table.
-    // Compute via floor(sqrt(2^62/d)) << 6 (= floor(2^31/sqrt(d))*64), then
-    // a short nudge so constexpr evaluation stays under Clang's step limit
-    // (full uint32 binary search does not).
     for (std::uint32_t i = 0; i < SQRT_TABLE_SIZE; ++i)
     {
         const std::uint64_t d = 2ull * (i + 512u) + 1ull;
+        // Same centres as SQRT_TABLE: C ≈ 2^32 / sqrt(a) = 2^37 / sqrt(d).
         const std::uint64_t s = constexprSqrt((std::uint64_t{1} << 62) / d);
         std::uint32_t c = static_cast<std::uint32_t>(s << 6);
 
@@ -212,14 +213,14 @@ constexpr std::array<std::uint32_t, SQRT_TABLE_SIZE> makeSqrtTable32() noexcept
             ++c;
         }
 
-        table[i] = c;
+        built[i] = c;
     }
 
-    return table;
+    return built;
 }
 
 alignas(64)
-inline constexpr auto SQRT_TABLE32 = makeSqrtTable32();
+inline const std::array<std::uint32_t, SQRT_TABLE_SIZE> SQRT_TABLE32 = makeSqrtTable32();
 
 static_assert(sizeof(SQRT_TABLE32) == 6144);
 static_assert(sizeof(SQRT_TABLE) + sizeof(SQRT_TABLE32) <= 16u * 1024u);

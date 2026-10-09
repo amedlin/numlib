@@ -38,10 +38,10 @@ Two tables share the same **1536** bins of width `1/512` over `[1, 4)`,
 each aligned to 64 bytes:
 
 - `SQRT_TABLE`: `uint16_t` entries (`C ≈ 2^16 / sqrt(a)`), **3072 bytes**,
-  used by the `int` specialization (exact after a single ±1 correction).
+  built at compile time; used by the `int` specialization.
 - `SQRT_TABLE32`: `uint32_t` entries (`C ≈ 2^32 / sqrt(a)`), **6144 bytes**,
-  used by the `uint64_t` overload and the Fixed specialized path (mul-based
-  polish; no Newton division).
+  built once at dynamic init (avoids Clang constexpr step limits; hot path is
+  still a direct load); used by the `uint64_t` overload and Fixed sqrt.
 
 A `static_assert` keeps the combined LUT size under a conservative **16 KiB**
 L1 budget (9216 bytes total).
