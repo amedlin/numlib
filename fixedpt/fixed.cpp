@@ -56,12 +56,12 @@ constexpr std::int32_t expApproxFixed16(std::int32_t x) noexcept
 } // namespace
 
 
-Fixed16 Fixed16::expApprox() const noexcept
+Fixed16 expApprox(Fixed16 value) noexcept
 {
-    if ((*this) >= 0)
+    if (value >= 0)
     {
-        return Fixed16{Fixed<16>::fromRaw(expApproxFixed16(x_))};
+        return Fixed16::fromRaw(expApproxFixed16(value.getRawValue()));
     }
 
-    return Fixed16{Fixed<16>::fromRaw(expApproxFixed16((-(*this)).x_))}.inverseApprox();
+    return Fixed16::fromRaw(expApproxFixed16((-value).getRawValue())).inverseApprox();
 }

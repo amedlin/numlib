@@ -6,10 +6,6 @@
 #include <cstdint>
 #include <limits>
 
-class Fixed16;
-class FixedF;
-class FixedI;
-
 namespace detail
 {
 
@@ -102,6 +98,9 @@ public:
     [[nodiscard]] Fixed cosApprox() const noexcept;
     void sinCosApprox(Fixed& sin_result, Fixed& cos_result) const noexcept;
 
+    // Shift the raw representation by exp (positive = left / *2^exp).
+    [[nodiscard]] constexpr Fixed scaleByPowerOfTwo(int exp) const noexcept;
+
     [[nodiscard]] constexpr float getFloat() const noexcept;
     [[nodiscard]] constexpr std::int32_t getInt() const noexcept;
 
@@ -183,11 +182,79 @@ private:
     }
 
     std::int32_t x_{0};
-
-    friend class Fixed16;
-    friend class FixedF;
-    friend class FixedI;
 };
+
+
+template <int To, int From>
+    requires(To > 0 && To < 32 && From > 0 && From < 32)
+[[nodiscard]]
+constexpr Fixed<To> convert(Fixed<From> value) noexcept
+{
+    if constexpr (To == From)
+    {
+        return Fixed<To>::fromRaw(value.getRawValue());
+    }
+    else if constexpr (To > From)
+    {
+        constexpr int SHIFT = To - From;
+        const std::int64_t scaled = static_cast<std::int64_t>(value.getRawValue()) << SHIFT;
+        assert(scaled == static_cast<std::int32_t>(scaled));
+        return Fixed<To>::fromRaw(static_cast<std::int32_t>(scaled));
+    }
+    else
+    {
+        constexpr int SHIFT = From - To;
+        return Fixed<To>::fromRaw(value.getRawValue() >> SHIFT);
+    }
+}
+
+
+// (a.raw * b.raw) >> (P + Q - Out), i.e. rescale the product into Q(32-Out).Out.
+template <int Out, int P, int Q>
+    requires(Out > 0 && Out < 32 && P > 0 && P < 32 && Q > 0 && Q < 32)
+[[nodiscard]]
+constexpr Fixed<Out> mulAs(Fixed<P> lhs, Fixed<Q> rhs) noexcept
+{
+    constexpr int SHIFT = P + Q - Out;
+    static_assert(SHIFT >= 0 && SHIFT < 64);
+
+    const std::int64_t product =
+        static_cast<std::int64_t>(lhs.getRawValue()) * static_cast<std::int64_t>(rhs.getRawValue());
+    const std::int64_t scaled = product >> SHIFT;
+    assert(scaled == static_cast<std::int32_t>(scaled));
+    return Fixed<Out>::fromRaw(static_cast<std::int32_t>(scaled));
+}
+
+
+// (a.raw << (Q - P + Out)) / b.raw, i.e. rescale the quotient into Q(32-Out).Out.
+template <int Out, int P, int Q>
+    requires(Out > 0 && Out < 32 && P > 0 && P < 32 && Q > 0 && Q < 32)
+[[nodiscard]]
+constexpr Fixed<Out> divAs(Fixed<P> lhs, Fixed<Q> rhs) noexcept
+{
+    constexpr int SHIFT = Q - P + Out;
+    static_assert(SHIFT >= 0 && SHIFT < 64);
+
+    const std::int64_t denominator = static_cast<std::int64_t>(rhs.getRawValue());
+    assert(denominator != 0);
+    const std::int64_t numerator = static_cast<std::int64_t>(lhs.getRawValue()) << SHIFT;
+    const std::int64_t quotient = numerator / denominator;
+    assert(quotient == static_cast<std::int32_t>(quotient));
+    return Fixed<Out>::fromRaw(static_cast<std::int32_t>(quotient));
+}
+
+
+template <int P>
+    requires(P > 0 && P < 32)
+[[nodiscard]]
+constexpr Fixed<P> mulAdd(Fixed<P> a, Fixed<P> b, Fixed<P> c) noexcept
+{
+    const std::int64_t product =
+        (static_cast<std::int64_t>(a.getRawValue()) * static_cast<std::int64_t>(b.getRawValue())) >> P;
+    const std::int64_t sum = product + static_cast<std::int64_t>(c.getRawValue());
+    assert(sum == static_cast<std::int32_t>(sum));
+    return Fixed<P>::fromRaw(static_cast<std::int32_t>(sum));
+}
 
 
 template <int P>
@@ -397,9 +464,8 @@ template <int P>
     requires(P > 0 && P < 32)
 constexpr Fixed<P> Fixed<P>::ceil() const noexcept
 {
-    constexpr std::int32_t UNIT = 1 << P;
-    constexpr std::int32_t MASK = static_cast<std::int32_t>(0xffffffffu << P);
-    return fromRaw((x_ & MASK) + UNIT);
+    // floor truncates toward -infinity; ceil(x) = -floor(-x).
+    return -((-(*this)).floor());
 }
 
 template <int P>
@@ -477,6 +543,20 @@ constexpr Fixed<P> Fixed<P>::invSqrtApprox() const noexcept
 
 template <int P>
     requires(P > 0 && P < 32)
+constexpr Fixed<P> Fixed<P>::scaleByPowerOfTwo(int exp) const noexcept
+{
+    if (exp >= 0)
+    {
+        const std::int64_t scaled = static_cast<std::int64_t>(x_) << exp;
+        assert(scaled == static_cast<std::int32_t>(scaled));
+        return fromRaw(static_cast<std::int32_t>(scaled));
+    }
+
+    return fromRaw(x_ >> -exp);
+}
+
+template <int P>
+    requires(P > 0 && P < 32)
 inline Fixed<P> Fixed<P>::sin() const noexcept
 {
     return fromRaw(detail::floatToFixed(std::sin(getFloat()), P));
@@ -533,3 +613,93 @@ constexpr Fixed<P> operator*(std::int32_t value, Fixed<P> fixed) noexcept
 {
     return fixed * value;
 }
+
+
+namespace std
+{
+
+template <int P>
+    requires(P > 0 && P < 32)
+class numeric_limits<Fixed<P>>
+{
+public:
+    static constexpr bool is_specialized = true;
+    static constexpr bool is_signed = true;
+    static constexpr bool is_integer = false;
+    static constexpr bool is_exact = true;
+    static constexpr bool has_infinity = false;
+    static constexpr bool has_quiet_NaN = false;
+    static constexpr bool has_signaling_NaN = false;
+    static constexpr float_denorm_style has_denorm = denorm_absent;
+    static constexpr bool has_denorm_loss = false;
+    static constexpr float_round_style round_style = round_toward_zero;
+    static constexpr bool is_iec559 = false;
+    static constexpr bool is_bounded = true;
+    static constexpr bool is_modulo = false;
+    static constexpr int digits = 31;
+    static constexpr int digits10 = 9;
+    static constexpr int max_digits10 = 0;
+    static constexpr int radix = 2;
+    static constexpr int min_exponent = 0;
+    static constexpr int min_exponent10 = 0;
+    static constexpr int max_exponent = 0;
+    static constexpr int max_exponent10 = 0;
+    static constexpr bool traps = false;
+    static constexpr bool tinyness_before = false;
+
+    [[nodiscard]]
+    static constexpr Fixed<P> min() noexcept
+    {
+        return Fixed<P>::getMinValue();
+    }
+
+    [[nodiscard]]
+    static constexpr Fixed<P> lowest() noexcept
+    {
+        return Fixed<P>::getMinValue();
+    }
+
+    [[nodiscard]]
+    static constexpr Fixed<P> max() noexcept
+    {
+        return Fixed<P>::getMaxValue();
+    }
+
+    [[nodiscard]]
+    static constexpr Fixed<P> epsilon() noexcept
+    {
+        return Fixed<P>::getEpsilon();
+    }
+
+    [[nodiscard]]
+    static constexpr Fixed<P> round_error() noexcept
+    {
+        return Fixed<P>::fromRaw(1 << (P - 1));
+    }
+
+    [[nodiscard]]
+    static constexpr Fixed<P> infinity() noexcept
+    {
+        return Fixed<P>{};
+    }
+
+    [[nodiscard]]
+    static constexpr Fixed<P> quiet_NaN() noexcept
+    {
+        return Fixed<P>{};
+    }
+
+    [[nodiscard]]
+    static constexpr Fixed<P> signaling_NaN() noexcept
+    {
+        return Fixed<P>{};
+    }
+
+    [[nodiscard]]
+    static constexpr Fixed<P> denorm_min() noexcept
+    {
+        return Fixed<P>::getEpsilon();
+    }
+};
+
+} // namespace std

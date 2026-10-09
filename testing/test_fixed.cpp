@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 #include "fixedpt/fixed_types.h"
 
@@ -253,7 +254,7 @@ void requireSinCosApprox(float x)
 
 void requireExpApprox(float x)
 {
-    const Fixed16 result = Fixed16(x).expApprox();
+    const Fixed16 result = expApprox(Fixed16(x));
     REQUIRE(std::fabs(result.getFloat() - std::exp(x)) < productTolerance<Fixed16>());
 }
 
@@ -265,11 +266,15 @@ TEST_CASE("Fixed construction from ratio and conversions")
     const Fixed16 fixed_16(-6, 8);
     REQUIRE(fixed_16.getFloat() == -0.75f);
 
-    const FixedI fixed_i(fixed_16);
+    const FixedI fixed_i = convert<8>(fixed_16);
     REQUIRE(fixed_i.getFloat() == -0.75f);
 
     const FixedI fixed_i_ratio(-6, 8);
     REQUIRE(fixed_i_ratio.getFloat() == -0.75f);
+
+    const FixedF fixed_f = convert<24>(fixed_16);
+    REQUIRE(std::fabs(fixed_f.getFloat() - (-0.75f)) < productTolerance<FixedF>());
+    REQUIRE(std::fabs(convert<16>(fixed_f).getFloat() - (-0.75f)) < productTolerance<Fixed16>());
 }
 
 TEST_CASE("Fixed assignment from int, float, and double")
@@ -609,40 +614,41 @@ TEST_CASE("Fixed type specializations and mixed operators")
     const FixedI x_i1(f4);
     const FixedI x_i2(f5);
 
-    REQUIRE(std::fabs((x_x1 * x_f1).getFloat() - f0 * f2) < productTolerance<Fixed16>());
-    REQUIRE(std::fabs((x_x1 * x_f2).getFloat() - f0 * f3) < productTolerance<Fixed16>());
-    REQUIRE(std::fabs((x_x2 * x_f2).getFloat() - f1 * f3) < productTolerance<Fixed16>());
+    REQUIRE(std::fabs(mulAs<16>(x_x1, x_f1).getFloat() - f0 * f2) < productTolerance<Fixed16>());
+    REQUIRE(std::fabs(mulAs<16>(x_x1, x_f2).getFloat() - f0 * f3) < productTolerance<Fixed16>());
+    REQUIRE(std::fabs(mulAs<16>(x_x2, x_f2).getFloat() - f1 * f3) < productTolerance<Fixed16>());
 
-    Fixed16 temp_x;
-    REQUIRE(std::fabs((temp_x = x_f1).getFloat() - f2) < productTolerance<Fixed16>());
+    Fixed16 temp_x = convert<16>(x_f1);
+    REQUIRE(std::fabs(temp_x.getFloat() - f2) < productTolerance<Fixed16>());
 
-    FixedF temp_f;
-    REQUIRE(std::fabs((temp_f = x_x1).getFloat() - f0) < productTolerance<FixedF>());
+    FixedF temp_f = convert<24>(x_x1);
+    REQUIRE(std::fabs(temp_f.getFloat() - f0) < productTolerance<FixedF>());
 
-    REQUIRE(std::fabs((x_f1 * x_i2).getFloat() - f2 * f5) < productTolerance<FixedI>());
-    REQUIRE(std::fabs((x_f2 * x_i2).getFloat() - f3 * f5) < productTolerance<FixedI>());
+    REQUIRE(std::fabs(mulAs<16>(x_f1, x_i2).getFloat() - f2 * f5) < productTolerance<FixedI>());
+    REQUIRE(std::fabs(mulAs<16>(x_f2, x_i2).getFloat() - f3 * f5) < productTolerance<FixedI>());
 
-    REQUIRE(std::fabs((x_f1 * x_x1).getFloat() - f2 * f0) < productTolerance<Fixed16>());
-    REQUIRE(std::fabs((x_f2 * x_x1).getFloat() - f3 * f0) < productTolerance<Fixed16>());
-    REQUIRE(std::fabs((x_f2 * x_x2).getFloat() - f3 * f1) < productTolerance<Fixed16>());
+    REQUIRE(std::fabs(mulAs<16>(x_f1, x_x1).getFloat() - f2 * f0) < productTolerance<Fixed16>());
+    REQUIRE(std::fabs(mulAs<16>(x_f2, x_x1).getFloat() - f3 * f0) < productTolerance<Fixed16>());
+    REQUIRE(std::fabs(mulAs<16>(x_f2, x_x2).getFloat() - f3 * f1) < productTolerance<Fixed16>());
 
-    REQUIRE(std::fabs((x_f1 / x_i1).getFloat() - f2 / f4) < productTolerance<FixedF>());
-    REQUIRE(std::fabs((x_f1 / x_i2).getFloat() - f2 / f5) < productTolerance<FixedF>());
-    REQUIRE(std::fabs((x_f2 / x_i1).getFloat() - f3 / f4) < productTolerance<FixedF>());
-    REQUIRE(std::fabs((x_f2 / x_i2).getFloat() - f3 / f5) < productTolerance<FixedF>());
+    REQUIRE(std::fabs(divAs<24>(x_f1, x_i1).getFloat() - f2 / f4) < productTolerance<FixedF>());
+    REQUIRE(std::fabs(divAs<24>(x_f1, x_i2).getFloat() - f2 / f5) < productTolerance<FixedF>());
+    REQUIRE(std::fabs(divAs<24>(x_f2, x_i1).getFloat() - f3 / f4) < productTolerance<FixedF>());
+    REQUIRE(std::fabs(divAs<24>(x_f2, x_i2).getFloat() - f3 / f5) < productTolerance<FixedF>());
 
-    FixedI temp_i;
-    REQUIRE(std::fabs((temp_i = x_x1).getFloat() - f0) < productTolerance<FixedI>());
-    REQUIRE(std::fabs((temp_i = x_x2).getFloat() - f1) < productTolerance<FixedI>());
+    FixedI temp_i = convert<8>(x_x1);
+    REQUIRE(std::fabs(temp_i.getFloat() - f0) < productTolerance<FixedI>());
+    temp_i = convert<8>(x_x2);
+    REQUIRE(std::fabs(temp_i.getFloat() - f1) < productTolerance<FixedI>());
 
-    REQUIRE(std::fabs((x_i2 * x_f1).getFloat() - f5 * f2) < productTolerance<FixedI>());
-    REQUIRE(std::fabs((x_i2 * x_f2).getFloat() - f5 * f3) < productTolerance<FixedI>());
+    REQUIRE(std::fabs(mulAs<16>(x_i2, x_f1).getFloat() - f5 * f2) < productTolerance<FixedI>());
+    REQUIRE(std::fabs(mulAs<16>(x_i2, x_f2).getFloat() - f5 * f3) < productTolerance<FixedI>());
 
-    REQUIRE(std::fabs((x_i2 * x_x1).getFloat() - f5 * f0) < 5.0f * productTolerance<FixedI>());
-    REQUIRE(std::fabs((x_x1 * x_i2).getFloat() - f5 * f0) < 5.0f * productTolerance<FixedI>());
+    REQUIRE(std::fabs(mulAs<8>(x_i2, x_x1).getFloat() - f5 * f0) < 5.0f * productTolerance<FixedI>());
+    REQUIRE(std::fabs(mulAs<8>(x_x1, x_i2).getFloat() - f5 * f0) < 5.0f * productTolerance<FixedI>());
 
-    REQUIRE(std::fabs((x_i2 / x_x1).getFloat() - f5 / f0) < productTolerance<FixedI>());
-    REQUIRE(std::fabs((x_i1 / x_x2).getFloat() - f4 / f1) < productTolerance<FixedI>());
+    REQUIRE(std::fabs(divAs<8>(x_i2, x_x1).getFloat() - f5 / f0) < productTolerance<FixedI>());
+    REQUIRE(std::fabs(divAs<8>(x_i1, x_x2).getFloat() - f4 / f1) < productTolerance<FixedI>());
 
     constexpr int numerator1 = 4;
     constexpr int denominator1 = 7;
@@ -778,4 +784,29 @@ TEST_CASE("Fixed approximate inverse, sqrt, invSqrt, trig, and exp")
     requireExpApprox(x3);
     requireExpApprox(-x3);
     requireExpApprox(-x4);
+}
+
+TEST_CASE("Fixed mulAdd, scaleByPowerOfTwo, ceil on integers, and numeric_limits")
+{
+    const Fixed16 a(3.0f);
+    const Fixed16 b(4.0f);
+    const Fixed16 c(5.0f);
+    REQUIRE(std::fabs(mulAdd(a, b, c).getFloat() - 17.0f) < sumTolerance<Fixed16>());
+
+    const Fixed16 eight(8.0f);
+    REQUIRE(eight.scaleByPowerOfTwo(1).getFloat() == 16.0f);
+    REQUIRE(eight.scaleByPowerOfTwo(-2).getFloat() == 2.0f);
+
+    const Fixed16 exact(5);
+    REQUIRE(exact.ceil().getFloat() == 5.0f);
+    const Fixed16 inexact(5.25f);
+    REQUIRE(inexact.ceil().getFloat() == 6.0f);
+
+    using Limits = std::numeric_limits<Fixed16>;
+    REQUIRE(Limits::is_specialized);
+    REQUIRE(Limits::is_exact);
+    REQUIRE_FALSE(Limits::is_integer);
+    REQUIRE(Limits::epsilon().getRawValue() == 1);
+    REQUIRE(Limits::max().getRawValue() == Fixed16::getMaxValue().getRawValue());
+    REQUIRE(Limits::min().getRawValue() == Fixed16::getMinValue().getRawValue());
 }
