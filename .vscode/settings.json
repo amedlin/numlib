@@ -2,7 +2,12 @@
   "cmake.useCMakePresets": "always",
   "cmake.configureOnOpen": true,
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "C_Cpp.intelliSenseEngine": "disabled",
   "C_Cpp.clang_format_style": "file",
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}/build-clangd",
+    "--query-driver=C:/Program Files/Microsoft Visual Studio/**/cl.exe"
+  ],
   "editor.rulers": [120],
   "editor.wordWrap": "off",
   "[cpp]": {
