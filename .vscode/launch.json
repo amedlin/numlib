@@ -9,6 +9,13 @@
       "target": "test_isqrt"
     },
     {
+      "name": "Debug test_fixed",
+      "type": "cmake",
+      "request": "launch",
+      "cmakeDebugType": "debug",
+      "target": "test_fixed"
+    },
+    {
       "name": "Debug perf",
       "type": "cmake",
       "request": "launch",
