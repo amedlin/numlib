@@ -67,3 +67,8 @@ the selected Q format.
 Raw-value access is available through `getRawValue`, `setRawValue`, and
 `fromRaw`. Use these functions when interoperating with binary protocols,
 hardware registers, or other fixed-point implementations.
+
+## Performance
+
+Bare-metal Fixed16 vs float timings live in [perf.md](perf.md) (from
+versioned `docs/perf-results.json`).

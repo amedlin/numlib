@@ -2,13 +2,28 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <ctime>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <random>
+#include <sstream>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <vector>
+
+#if defined(_MSC_VER)
+#include <intrin.h>
+#elif defined(__GNUC__) || defined(__clang__)
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+#include <cpuid.h>
+#endif
+#endif
 
 #include "fixedpt/fixed_types.h"
 #include "int/isqrt.h"
@@ -302,23 +317,26 @@ double timeBatchNs(Fn&& fn, int warmup_runs, int sample_runs)
     return samples[samples.size() / 2];
 }
 
-void printResult(
-    std::string_view name,
-    double batch_ns,
-    int sample_count,
-    double sink)
+struct BenchResult
 {
-    const double per_call_ns = batch_ns / static_cast<double>(sample_count);
+    std::string name;
+    double batch_ns = 0.0;
+    double per_call_ns = 0.0;
+    double sink = 0.0;
+};
 
-    std::cout << std::left << std::setw(36) << name
+void printResult(const BenchResult& result)
+{
+    std::cout << std::left << std::setw(36) << result.name
               << " median " << std::setw(10) << std::fixed << std::setprecision(1)
-              << batch_ns << " ns/batch  "
-              << std::setw(8) << per_call_ns << " ns/call"
-              << "  (sink=" << sink << ")\n";
+              << result.batch_ns << " ns/batch  "
+              << std::setw(8) << result.per_call_ns << " ns/call"
+              << "  (sink=" << result.sink << ")\n";
 }
 
 template <typename Fn>
 void runNamed(
+    std::vector<BenchResult>& results,
     std::string_view name,
     Fn&& fn,
     int warmup_runs,
@@ -335,7 +353,213 @@ void runNamed(
         },
         warmup_runs,
         sample_runs);
-    printResult(name, ns, sample_count, static_cast<double>(sink));
+
+    BenchResult row;
+    row.name = std::string{name};
+    row.batch_ns = ns;
+    row.per_call_ns = ns / static_cast<double>(sample_count);
+    row.sink = static_cast<double>(sink);
+    printResult(row);
+    results.push_back(std::move(row));
+}
+
+std::string jsonEscape(std::string_view text)
+{
+    std::string out;
+    out.reserve(text.size());
+    for (const char ch : text)
+    {
+        switch (ch)
+        {
+        case '\\':
+            out += "\\\\";
+            break;
+        case '"':
+            out += "\\\"";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\r':
+            out += "\\r";
+            break;
+        case '\t':
+            out += "\\t";
+            break;
+        default:
+            out += ch;
+            break;
+        }
+    }
+    return out;
+}
+
+std::string trimAscii(std::string text)
+{
+    const auto not_space = [](unsigned char ch) { return ch != ' ' && ch != '\0'; };
+    while (!text.empty() && !not_space(static_cast<unsigned char>(text.front())))
+    {
+        text.erase(text.begin());
+    }
+    while (!text.empty() && !not_space(static_cast<unsigned char>(text.back())))
+    {
+        text.pop_back();
+    }
+    return text;
+}
+
+std::string detectOs()
+{
+#if defined(_WIN32)
+    return "Windows";
+#elif defined(__APPLE__)
+    return "macOS";
+#elif defined(__linux__)
+    return "Linux";
+#else
+    return "unknown";
+#endif
+}
+
+std::string detectCpu()
+{
+    char brand[49] = {};
+
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+    int regs[4] = {};
+    __cpuid(regs, static_cast<int>(0x80000000u));
+    if (static_cast<unsigned>(regs[0]) >= 0x80000004u)
+    {
+        for (unsigned i = 0; i < 3; ++i)
+        {
+            __cpuid(regs, static_cast<int>(0x80000002u + i));
+            std::memcpy(brand + i * 16, regs, 16);
+        }
+        return trimAscii(brand);
+    }
+#elif (defined(__GNUC__) || defined(__clang__)) && \
+    (defined(__x86_64__) || defined(__i386__))
+    unsigned eax = 0;
+    unsigned ebx = 0;
+    unsigned ecx = 0;
+    unsigned edx = 0;
+    if (__get_cpuid_max(0x80000000u, nullptr) >= 0x80000004u)
+    {
+        for (unsigned i = 0; i < 3; ++i)
+        {
+            __get_cpuid(0x80000002u + i, &eax, &ebx, &ecx, &edx);
+            std::memcpy(brand + i * 16 + 0, &eax, 4);
+            std::memcpy(brand + i * 16 + 4, &ebx, 4);
+            std::memcpy(brand + i * 16 + 8, &ecx, 4);
+            std::memcpy(brand + i * 16 + 12, &edx, 4);
+        }
+        return trimAscii(brand);
+    }
+#endif
+
+#if defined(__linux__)
+    std::ifstream cpuinfo{"/proc/cpuinfo"};
+    std::string line;
+    while (std::getline(cpuinfo, line))
+    {
+        constexpr std::string_view key = "model name";
+        if (line.compare(0, key.size(), key) == 0)
+        {
+            const auto colon = line.find(':');
+            if (colon != std::string::npos)
+            {
+                return trimAscii(line.substr(colon + 1));
+            }
+        }
+    }
+#endif
+
+    return "unknown";
+}
+
+std::string isoUtcTimestamp()
+{
+    using namespace std::chrono;
+    const auto now = system_clock::now();
+    const std::time_t t = system_clock::to_time_t(now);
+    std::tm tm_utc{};
+#if defined(_WIN32)
+    gmtime_s(&tm_utc, &t);
+#else
+    gmtime_r(&t, &tm_utc);
+#endif
+    std::ostringstream oss;
+    oss << std::put_time(&tm_utc, "%Y-%m-%dT%H:%M:%SZ");
+    return oss.str();
+}
+
+std::optional<std::filesystem::path> findRepoRoot()
+{
+    namespace fs = std::filesystem;
+    fs::path dir = fs::current_path();
+    for (int i = 0; i < 8; ++i)
+    {
+        if (fs::is_regular_file(dir / "CMakeLists.txt") &&
+            fs::is_directory(dir / "docs"))
+        {
+            return dir;
+        }
+        const fs::path parent = dir.parent_path();
+        if (parent == dir)
+        {
+            break;
+        }
+        dir = parent;
+    }
+    return std::nullopt;
+}
+
+bool writePerfResultsJson(
+    const std::filesystem::path& path,
+    int sample_count,
+    int warmup_runs,
+    int sample_runs,
+    const std::vector<BenchResult>& results)
+{
+    std::ofstream out{path, std::ios::binary | std::ios::trunc};
+    if (!out)
+    {
+        std::cerr << "failed to write " << path.string() << '\n';
+        return false;
+    }
+
+    out << std::setprecision(17);
+    out << "{\n";
+    out << "  \"meta\": {\n";
+    out << "    \"samples\": " << sample_count << ",\n";
+    out << "    \"warmup_runs\": " << warmup_runs << ",\n";
+    out << "    \"timed_runs\": " << sample_runs << ",\n";
+    out << "    \"os\": \"" << jsonEscape(detectOs()) << "\",\n";
+    out << "    \"cpu\": \"" << jsonEscape(detectCpu()) << "\",\n";
+    out << "    \"captured_at\": \"" << jsonEscape(isoUtcTimestamp()) << "\",\n";
+    out << "    \"note\": \"Bare-metal baseline; Release perf writes this file\"\n";
+    out << "  },\n";
+    out << "  \"benchmarks\": [\n";
+
+    for (std::size_t i = 0; i < results.size(); ++i)
+    {
+        const BenchResult& row = results[i];
+        out << "    {\n";
+        out << "      \"name\": \"" << jsonEscape(row.name) << "\",\n";
+        out << "      \"batch_ns\": " << row.batch_ns << ",\n";
+        out << "      \"per_call_ns\": " << row.per_call_ns << ",\n";
+        out << "      \"sink\": " << row.sink << "\n";
+        out << "    }";
+        if (i + 1 < results.size())
+        {
+            out << ',';
+        }
+        out << '\n';
+    }
+
+    out << "  ]\n";
+    out << "}\n";
+    return static_cast<bool>(out);
 }
 
 } // namespace
@@ -400,6 +624,8 @@ int main()
 
     const std::int32_t* data = values.data();
     const std::size_t count = values.size();
+    std::vector<BenchResult> results;
+    results.reserve(16);
 
     std::cout << "numlib perf  samples=" << sample_count
               << "  warmup_runs=" << warmup_runs
@@ -408,6 +634,7 @@ int main()
 
     std::cout << "integer sqrt\n";
     runNamed(
+        results,
         "int-to-float + std::sqrt",
         [&]
         {
@@ -417,6 +644,7 @@ int main()
         sample_runs,
         sample_count);
     runNamed(
+        results,
         "integerSqrt",
         [&]
         {
@@ -426,6 +654,7 @@ int main()
         sample_runs,
         sample_count);
     runNamed(
+        results,
         "detail::constexprSqrt",
         [&]
         {
@@ -435,6 +664,7 @@ int main()
         sample_runs,
         sample_count);
     runNamed(
+        results,
         "integerSqrt uint64",
         [&]
         {
@@ -447,6 +677,7 @@ int main()
 
     std::cout << "\nFixed16 vs float (pre-converted inputs)\n";
     runNamed(
+        results,
         "float add",
         [&]
         {
@@ -456,6 +687,7 @@ int main()
         sample_runs,
         sample_count);
     runNamed(
+        results,
         "Fixed16 add",
         [&]
         {
@@ -466,6 +698,7 @@ int main()
         sample_count);
 
     runNamed(
+        results,
         "float mul",
         [&]
         {
@@ -475,6 +708,7 @@ int main()
         sample_runs,
         sample_count);
     runNamed(
+        results,
         "Fixed16 mul",
         [&]
         {
@@ -485,6 +719,7 @@ int main()
         sample_count);
 
     runNamed(
+        results,
         "float div",
         [&]
         {
@@ -494,6 +729,7 @@ int main()
         sample_runs,
         sample_count);
     runNamed(
+        results,
         "Fixed16 div",
         [&]
         {
@@ -504,6 +740,7 @@ int main()
         sample_count);
 
     runNamed(
+        results,
         "float mul-add",
         [&]
         {
@@ -513,6 +750,7 @@ int main()
         sample_runs,
         sample_count);
     runNamed(
+        results,
         "Fixed16 mulAdd",
         [&]
         {
@@ -523,6 +761,7 @@ int main()
         sample_count);
 
     runNamed(
+        results,
         "float sqrt",
         [&]
         {
@@ -532,6 +771,7 @@ int main()
         sample_runs,
         sample_count);
     runNamed(
+        results,
         "Fixed16 sqrt",
         [&]
         {
@@ -542,6 +782,7 @@ int main()
         sample_count);
 
     runNamed(
+        results,
         "float sin",
         [&]
         {
@@ -551,6 +792,7 @@ int main()
         sample_runs,
         sample_count);
     runNamed(
+        results,
         "Fixed16 sin (CORDIC)",
         [&]
         {
@@ -560,6 +802,7 @@ int main()
         sample_runs,
         sample_count);
     runNamed(
+        results,
         "Fixed16 sinViaFloat",
         [&]
         {
@@ -569,5 +812,26 @@ int main()
         sample_runs,
         sample_count);
 
+    const auto repo_root = findRepoRoot();
+    if (!repo_root)
+    {
+        std::cerr << "could not find repo root (CMakeLists.txt + docs/) from "
+                  << std::filesystem::current_path().string() << '\n';
+        return 1;
+    }
+
+    const std::filesystem::path results_path =
+        *repo_root / "docs" / "perf-results.json";
+    if (!writePerfResultsJson(
+            results_path,
+            sample_count,
+            warmup_runs,
+            sample_runs,
+            results))
+    {
+        return 1;
+    }
+
+    std::cout << "\nwrote " << results_path.string() << '\n';
     return 0;
 }
