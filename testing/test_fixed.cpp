@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 #include <cstdint>
 #include <limits>
 #include <random>
@@ -781,6 +782,8 @@ TEST_CASE("Fixed approximate inverse, sqrt, invSqrt, trig, and exp")
     requireSinCosApprox<FixedI>(x3);
     requireSinCosApprox<FixedF>(x3);
 
+    requireExpApprox(0.0f);
+    REQUIRE(expApprox(Fixed16{0}).getRawValue() == Fixed16{1}.getRawValue());
     requireExpApprox(x1);
     requireExpApprox(-x1);
     requireExpApprox(x2);
@@ -790,29 +793,104 @@ TEST_CASE("Fixed approximate inverse, sqrt, invSqrt, trig, and exp")
     requireExpApprox(-x4);
 }
 
-TEST_CASE("Fixed mulAdd, scaleByPowerOfTwo, ceil on integers, and numeric_limits")
+namespace
 {
-    const Fixed16 a(3.0f);
-    const Fixed16 b(4.0f);
-    const Fixed16 c(5.0f);
-    REQUIRE(std::fabs(mulAdd(a, b, c).getFloat() - 17.0f) < sumTolerance<Fixed16>());
 
-    const Fixed16 eight(8.0f);
+template <typename FixedType>
+void requireMulAddScaleCeilAndLimits()
+{
+    const FixedType a(3.0f);
+    const FixedType b(4.0f);
+    const FixedType c(5.0f);
+    REQUIRE(std::fabs(mulAdd(a, b, c).getFloat() - 17.0f) < sumTolerance<FixedType>());
+
+    const FixedType eight(8.0f);
     REQUIRE(eight.scaleByPowerOfTwo(1).getFloat() == 16.0f);
     REQUIRE(eight.scaleByPowerOfTwo(-2).getFloat() == 2.0f);
 
-    const Fixed16 exact(5);
+    const FixedType exact(5);
     REQUIRE(exact.ceil().getFloat() == 5.0f);
-    const Fixed16 inexact(5.25f);
+    const FixedType inexact(5.25f);
     REQUIRE(inexact.ceil().getFloat() == 6.0f);
 
-    using Limits = std::numeric_limits<Fixed16>;
+    using Limits = std::numeric_limits<FixedType>;
     REQUIRE(Limits::is_specialized);
     REQUIRE(Limits::is_exact);
     REQUIRE_FALSE(Limits::is_integer);
     REQUIRE(Limits::epsilon().getRawValue() == 1);
-    REQUIRE(Limits::max().getRawValue() == Fixed16::getMaxValue().getRawValue());
-    REQUIRE(Limits::min().getRawValue() == Fixed16::getMinValue().getRawValue());
+    REQUIRE(Limits::max().getRawValue() == FixedType::getMaxValue().getRawValue());
+    REQUIRE(Limits::min().getRawValue() == FixedType::getMinValue().getRawValue());
+    REQUIRE(FixedType::getFractionalBits() == FixedType::PRECISION);
+}
+
+template <typename FixedType>
+void requireComparisonsUnaryDefaultAndRaw()
+{
+    const FixedType zero{};
+    REQUIRE(zero.getRawValue() == 0);
+    REQUIRE(zero.getFloat() == 0.0f);
+
+    const FixedType a(3.0f);
+    const FixedType b(5.0f);
+    const FixedType a_copy(3.0f);
+
+    REQUIRE(a == a_copy);
+    REQUIRE(a != b);
+    REQUIRE(a < b);
+    REQUIRE(b > a);
+    REQUIRE(a <= a_copy);
+    REQUIRE(a >= a_copy);
+    REQUIRE((a <=> b) == std::strong_ordering::less);
+    REQUIRE((b <=> a) == std::strong_ordering::greater);
+    REQUIRE((a <=> a_copy) == std::strong_ordering::equal);
+
+    using Rep = typename FixedType::rep;
+    REQUIRE(a > Rep{2});
+    REQUIRE(a < Rep{4});
+    REQUIRE(a >= Rep{3});
+    REQUIRE(a <= Rep{3});
+    REQUIRE(a == Rep{3});
+    REQUIRE(a != Rep{4});
+
+    REQUIRE((-a).getFloat() == -a.getFloat());
+    REQUIRE((-(-a)).getRawValue() == a.getRawValue());
+    REQUIRE((-zero).getRawValue() == 0);
+
+    const auto raw = a.getRawValue();
+    REQUIRE(FixedType::fromRaw(raw).getRawValue() == raw);
+
+    FixedType mutated{};
+    mutated.setRawValue(raw);
+    REQUIRE(mutated.getRawValue() == raw);
+    REQUIRE(mutated == a);
+}
+
+template <typename FixedType>
+void requireSinCosViaFloat(float x)
+{
+    FixedType sin_result;
+    FixedType cos_result;
+    FixedType(x).sinCosViaFloat(sin_result, cos_result);
+    REQUIRE(std::fabs(sin_result.getFloat() - std::sin(x)) < trigTolerance<FixedType>());
+    REQUIRE(std::fabs(cos_result.getFloat() - std::cos(x)) < trigTolerance<FixedType>());
+    REQUIRE(std::fabs(FixedType(x).sinViaFloat().getFloat() - std::sin(x)) < trigTolerance<FixedType>());
+    REQUIRE(std::fabs(FixedType(x).cosViaFloat().getFloat() - std::cos(x)) < trigTolerance<FixedType>());
+}
+
+} // namespace
+
+TEST_CASE("Fixed mulAdd, scaleByPowerOfTwo, ceil on integers, and numeric_limits")
+{
+    requireMulAddScaleCeilAndLimits<Fixed16>();
+    requireMulAddScaleCeilAndLimits<FixedF>();
+    requireMulAddScaleCeilAndLimits<FixedI>();
+}
+
+TEST_CASE("Fixed comparisons, unary minus, default, and raw accessors")
+{
+    requireComparisonsUnaryDefaultAndRaw<Fixed16>();
+    requireComparisonsUnaryDefaultAndRaw<FixedF>();
+    requireComparisonsUnaryDefaultAndRaw<FixedI>();
 }
 
 TEST_CASE("Fixed Rep parameter and viaFloat trig")
@@ -823,9 +901,9 @@ TEST_CASE("Fixed Rep parameter and viaFloat trig")
     REQUIRE((x * y).getInt() == 6);
     REQUIRE(std::fabs(x.getFloat() - 3.0f) < Q88::getEpsilon().getFloat());
 
-    const Fixed16 angle(0.5f);
-    REQUIRE(std::fabs(angle.sinViaFloat().getFloat() - std::sin(0.5f)) < trigTolerance<Fixed16>());
-    REQUIRE(std::fabs(angle.cosViaFloat().getFloat() - std::cos(0.5f)) < trigTolerance<Fixed16>());
+    requireSinCosViaFloat<Fixed16>(0.5f);
+    requireSinCosViaFloat<FixedF>(0.5f);
+    requireSinCosViaFloat<FixedI>(0.5f);
 }
 
 namespace
