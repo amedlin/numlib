@@ -5,7 +5,7 @@
     "timed_runs": 200,
     "os": "Windows",
     "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
-    "captured_at": "2026-10-11T10:19:59Z",
+    "captured_at": "2026-10-11T10:40:51Z",
     "note": "Bare-metal baseline; Release perf writes this file"
   },
   "benchmarks": [
@@ -17,20 +17,20 @@
     },
     {
       "name": "integerSqrt",
-      "batch_ns": 2600,
-      "per_call_ns": 2.6000000000000001,
+      "batch_ns": 2500,
+      "per_call_ns": 2.5,
       "sink": 30804578
     },
     {
       "name": "detail::constexprSqrt",
-      "batch_ns": 53100,
-      "per_call_ns": 53.100000000000001,
+      "batch_ns": 52700,
+      "per_call_ns": 52.700000000000003,
       "sink": 30804578
     },
     {
       "name": "integerSqrt uint64",
-      "batch_ns": 19000,
-      "per_call_ns": 19,
+      "batch_ns": 18900,
+      "per_call_ns": 18.899999999999999,
       "sink": 2877040127564
     },
     {
@@ -95,14 +95,14 @@
     },
     {
       "name": "float sin",
-      "batch_ns": 5400,
-      "per_call_ns": 5.4000000000000004,
+      "batch_ns": 6100,
+      "per_call_ns": 6.0999999999999996,
       "sink": 8.0438604354858398
     },
     {
       "name": "Fixed16 sin (CORDIC)",
-      "batch_ns": 87400,
-      "per_call_ns": 87.400000000000006,
+      "batch_ns": 88300,
+      "per_call_ns": 88.299999999999997,
       "sink": 527084
     },
     {

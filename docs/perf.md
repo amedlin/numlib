@@ -8,7 +8,7 @@ about, then regenerate this page.
 
 - **CPU:** AMD Ryzen 7 3700X 8-Core Processor
 - **OS:** Windows
-- **Captured:** 2026-10-11T10:19:59Z
+- **Captured:** 2026-10-11T10:40:51Z
 - **Samples per batch:** 1000
 - **Warmup runs:** 20
 - **Timed runs (median):** 200
@@ -19,9 +19,9 @@ about, then regenerate this page.
 | Benchmark | ns/call | ns/batch |
 | --- | ---: | ---: |
 | int-to-float + std::sqrt | 1.3 | 1300.0 |
-| integerSqrt | 2.6 | 2600.0 |
-| detail::constexprSqrt | 53.1 | 53100.0 |
-| integerSqrt uint64 | 19.0 | 19000.0 |
+| integerSqrt | 2.5 | 2500.0 |
+| detail::constexprSqrt | 52.7 | 52700.0 |
+| integerSqrt uint64 | 18.9 | 18900.0 |
 | float add | 0.7 | 700.0 |
 | Fixed16 add | 0.3 | 300.0 |
 | float mul | 0.7 | 700.0 |
@@ -32,8 +32,8 @@ about, then regenerate this page.
 | Fixed16 mulAdd | 0.7 | 700.0 |
 | float sqrt | 1.3 | 1300.0 |
 | Fixed16 sqrt | 3.7 | 3700.0 |
-| float sin | 5.4 | 5400.0 |
-| Fixed16 sin (CORDIC) | 87.4 | 87400.0 |
+| float sin | 6.1 | 6100.0 |
+| Fixed16 sin (CORDIC) | 88.3 | 88300.0 |
 | Fixed16 sinViaFloat | 6.7 | 6700.0 |
 
 ## Refresh

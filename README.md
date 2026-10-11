@@ -48,8 +48,19 @@ numlib is available under the [MIT License](LICENSE).
 
 - [CMake](https://cmake.org/) 3.20 or newer
 - A C++20 compiler (MSVC, Clang, or GCC)
+- [Ninja](https://ninja-build.org/) if you use editor IntelliSense (clangd) — see below
 - [Cursor](https://cursor.com/) or [VS Code](https://code.visualstudio.com/)
-- Extensions: **CMake Tools** and **C/C++** (recommended when you open the project)
+- Recommended extensions (prompted on open; see
+  [`.vscode/extensions.json`](.vscode/extensions.json)):
+  - **CMake Tools** (`ms-vscode.cmake-tools`)
+  - **clangd** (`llvm-vs-code-extensions.vscode-clangd`)
+
+Microsoft’s **C/C++** extension (`ms-vscode.cpptools`) is not required and does
+not work in Cursor. Shared [`.vscode/settings.json`](.vscode/settings.json)
+disables its IntelliSense so it does not conflict with clangd.
+
+Personal `*.code-workspace` files are gitignored; use the repo folder (and
+`.vscode/`) instead.
 
 ## Install the toolchain
 
@@ -57,6 +68,7 @@ numlib is available under the [MIT License](LICENSE).
 
 1. Install [Visual Studio](https://visualstudio.microsoft.com/) 2022 or newer (including VS 2026).
 2. In the installer, select the **Desktop development with C++** workload (MSVC + CMake).
+   That workload also provides Ninja for the **clangd** preset.
 3. Open this repo in Cursor/VS Code. CMake Tools will use the Visual Studio kit (no need to put `cl` or `cmake` on your PATH).
 
 ### macOS
@@ -67,15 +79,15 @@ numlib is available under the [MIT License](LICENSE).
    xcode-select --install
    ```
 
-2. Install CMake if you do not have it (Homebrew):
+2. Install CMake and Ninja if you do not have them (Homebrew):
 
    ```bash
-   brew install cmake
+   brew install cmake ninja
    ```
 
 ### Linux
 
-Install CMake and a C++20 compiler with your package manager.
+Install CMake, Ninja, and a C++20 compiler with your package manager.
 
 Debian/Ubuntu:
 
@@ -92,15 +104,36 @@ sudo dnf install -y cmake gcc-c++ ninja-build
 
 ## Open the project
 
-1. Open the repo folder, or open `numlib.code-workspace`.
-2. When prompted, install the recommended extensions (**CMake Tools**, **C/C++**).
+1. Open the repo folder in Cursor/VS Code.
+2. When prompted, install the recommended extensions (**CMake Tools**, **clangd**).
 
 ## Configure and build (editor)
 
 1. Select a CMake kit for your machine (MSVC, Clang, or GCC).
 2. Configure with the **default** preset (CMake Tools status bar, or Command Palette → **CMake: Select Configure Preset**).
 3. Build (status bar **Build**, or **CMake: Build**).
-4. Set the launch/debug target to `test_isqrt`, `test_fixed`, or `perf`, then Run or Debug (F5). Launch configs **Debug test_isqrt**, **Debug test_fixed**, and **Debug perf** are provided.
+4. Set the launch/debug target to `test_isqrt`, `test_fixed`, or `perf`, then Run or Debug (F5). Launch configs **Debug test_isqrt**, **Debug test_fixed**, and **Debug perf** are in [`.vscode/launch.json`](.vscode/launch.json).
+
+### Editor IntelliSense (clangd)
+
+Outline, go-to-definition, and diagnostics come from **clangd**. It needs a
+[`compile_commands.json`](https://clang.llvm.org/docs/JSONCompilationDatabase.html)
+compilation database. The Visual Studio CMake generator does not emit that file;
+use the **clangd** Ninja preset once (in addition to your normal `build/` tree):
+
+```bash
+cmake --preset clangd
+```
+
+That writes `build-clangd/compile_commands.json`. [`.clangd`](.clangd) and
+[`.vscode/settings.json`](.vscode/settings.json) already point clangd at that
+directory (including `--query-driver` for MSVC on Windows).
+
+After the first configure (or if headers still show “Too many errors emitted”),
+run **clangd: Restart language server** from the Command Palette.
+
+You can keep using the Visual Studio generator under `build/` for builds and
+debugging; `build-clangd/` is only for the language server.
 
 ## Configure and build (CLI)
 
@@ -114,9 +147,14 @@ cmake --build --preset debug
 # Release
 cmake --preset release
 cmake --build --preset release
+
+# Language server database (Ninja; see Editor IntelliSense above)
+cmake --preset clangd
 ```
 
-`default` is an untyped configure preset; prefer `debug` or `release`. Build presets pass the matching configuration for multi-config generators (for example Visual Studio).
+`default` is an untyped configure preset; prefer `debug` or `release` for
+builds. Build presets pass the matching configuration for multi-config
+generators (for example Visual Studio).
 
 Run the binaries from `build/`:
 

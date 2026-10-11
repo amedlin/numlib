@@ -27,6 +27,14 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "clangd",
+      "inherits": "debug",
+      "displayName": "Clangd (Ninja)",
+      "description": "Ninja build that emits compile_commands.json for clangd/IntelliSense",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-clangd"
     }
   ],
   "buildPresets": [
