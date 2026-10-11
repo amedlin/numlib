@@ -22,8 +22,9 @@ remainder.
 - CMake targets for subdirectory and installed-package use
 - Tested with MSVC, Clang, and GCC; enables AVX2 on x86/x64 when the compiler supports it (skipped on ARM)
 
-Read the focused guides for [fixed-point arithmetic](docs/fixed-point.md) and
-[integer square root](docs/integer-square-root.md).
+Read the focused guides for [fixed-point arithmetic](docs/fixed-point.md),
+[integer square root](docs/integer-square-root.md), and
+[performance](docs/perf.md).
 
 ## Quick example
 
@@ -169,7 +170,7 @@ build\Release\perf.exe
 ./build/perf
 ```
 
-Run `perf` in **Release** for meaningful timings. It uses a small `std::chrono` harness (no Catch2).
+Run `perf` in **Release** for meaningful timings. It uses a small `std::chrono` harness (no Catch2). From the repository root it writes [`docs/perf-results.json`](docs/perf-results.json); regenerate the table with `python scripts/render_perf_md.py` and commit both that JSON and [`docs/perf.md`](docs/perf.md). See [performance](docs/perf.md).
 
 Unit tests use [Catch2](https://github.com/catchorg/Catch2), fetched by CMake at configure time (not checked into this repo). First configure needs network access. You can also run:
 

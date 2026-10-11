@@ -71,3 +71,8 @@ compiler supports it; ARM and other ISAs skip that flag.
 An exact integer square root is useful for integer geometry, number theory,
 image processing, embedded calculations, fixed-point math, and algorithms that
 need both the root and the residual value without floating-point rounding.
+
+## Performance
+
+Bare-metal timings for `integerSqrt`, Fixed sqrt, and related ops live in
+[perf.md](perf.md) (from versioned `docs/perf-results.json`).

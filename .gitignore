@@ -68,5 +68,7 @@ vcpkg_installed/
 
 .cursor/
 
+.cursor/
+
 # Personal multi-root workspace files (shared editor config lives in .vscode/)
 /*.code-workspace
