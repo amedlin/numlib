@@ -66,4 +66,6 @@ vcpkg_installed/
 # cache
 .cache/
 
+.cursor/
+
 /*.code-workspace

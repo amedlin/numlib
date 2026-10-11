@@ -1,0 +1,115 @@
+{
+  "meta": {
+    "samples": 1000,
+    "warmup_runs": 20,
+    "timed_runs": 200,
+    "os": "Windows",
+    "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+    "captured_at": "2026-10-11T10:19:59Z",
+    "note": "Bare-metal baseline; Release perf writes this file"
+  },
+  "benchmarks": [
+    {
+      "name": "int-to-float + std::sqrt",
+      "batch_ns": 1300,
+      "per_call_ns": 1.3,
+      "sink": 30805074
+    },
+    {
+      "name": "integerSqrt",
+      "batch_ns": 2600,
+      "per_call_ns": 2.6000000000000001,
+      "sink": 30804578
+    },
+    {
+      "name": "detail::constexprSqrt",
+      "batch_ns": 53100,
+      "per_call_ns": 53.100000000000001,
+      "sink": 30804578
+    },
+    {
+      "name": "integerSqrt uint64",
+      "batch_ns": 19000,
+      "per_call_ns": 19,
+      "sink": 2877040127564
+    },
+    {
+      "name": "float add",
+      "batch_ns": 700,
+      "per_call_ns": 0.69999999999999996,
+      "sink": 640.42431640625
+    },
+    {
+      "name": "Fixed16 add",
+      "batch_ns": 300,
+      "per_call_ns": 0.29999999999999999,
+      "sink": 41970992
+    },
+    {
+      "name": "float mul",
+      "batch_ns": 700,
+      "per_call_ns": 0.69999999999999996,
+      "sink": -73206.7890625
+    },
+    {
+      "name": "Fixed16 mul",
+      "batch_ns": 600,
+      "per_call_ns": 0.59999999999999998,
+      "sink": -4797673984
+    },
+    {
+      "name": "float div",
+      "batch_ns": 800,
+      "per_call_ns": 0.80000000000000004,
+      "sink": 101.41376495361328
+    },
+    {
+      "name": "Fixed16 div",
+      "batch_ns": 5300,
+      "per_call_ns": 5.2999999999999998,
+      "sink": 6646315
+    },
+    {
+      "name": "float mul-add",
+      "batch_ns": 700,
+      "per_call_ns": 0.69999999999999996,
+      "sink": -71933.578125
+    },
+    {
+      "name": "Fixed16 mulAdd",
+      "batch_ns": 700,
+      "per_call_ns": 0.69999999999999996,
+      "sink": -4714240000
+    },
+    {
+      "name": "float sqrt",
+      "batch_ns": 1300,
+      "per_call_ns": 1.3,
+      "sink": 4672.212890625
+    },
+    {
+      "name": "Fixed16 sqrt",
+      "batch_ns": 3700,
+      "per_call_ns": 3.7000000000000002,
+      "sink": 306197600
+    },
+    {
+      "name": "float sin",
+      "batch_ns": 5400,
+      "per_call_ns": 5.4000000000000004,
+      "sink": 8.0438604354858398
+    },
+    {
+      "name": "Fixed16 sin (CORDIC)",
+      "batch_ns": 87400,
+      "per_call_ns": 87.400000000000006,
+      "sink": 527084
+    },
+    {
+      "name": "Fixed16 sinViaFloat",
+      "batch_ns": 6700,
+      "per_call_ns": 6.7000000000000002,
+      "sink": 527160
+    }
+  ]
+}
