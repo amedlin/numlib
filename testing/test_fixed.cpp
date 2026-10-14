@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <limits>
 #include <random>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "fixedpt/fixed_types.h"
@@ -180,25 +182,25 @@ void requireInvSqrt(float x)
 }
 
 template <typename FixedType>
-void requireSin(float x)
+void requireSinCordic(float x)
 {
-    const FixedType result = FixedType(x).sin();
+    const FixedType result = FixedType(x).sinCordic();
     REQUIRE(std::fabs(result.getFloat() - std::sin(x)) < trigTolerance<FixedType>());
 }
 
 template <typename FixedType>
-void requireCos(float x)
+void requireCosCordic(float x)
 {
-    const FixedType result = FixedType(x).cos();
+    const FixedType result = FixedType(x).cosCordic();
     REQUIRE(std::fabs(result.getFloat() - std::cos(x)) < trigTolerance<FixedType>());
 }
 
 template <typename FixedType>
-void requireSinCos(float x)
+void requireSinCosCordic(float x)
 {
     FixedType sin_result;
     FixedType cos_result;
-    FixedType(x).sinCos(sin_result, cos_result);
+    FixedType(x).sinCosCordic(sin_result, cos_result);
     REQUIRE(std::fabs(sin_result.getFloat() - std::sin(x)) < trigTolerance<FixedType>());
     REQUIRE(std::fabs(cos_result.getFloat() - std::cos(x)) < trigTolerance<FixedType>());
 }
@@ -554,53 +556,53 @@ TEST_CASE("Fixed trigonometric functions")
     constexpr float x7 = 25.99f;
     constexpr float x8 = 0.38f;
 
-    requireSin<Fixed16>(x1);
-    requireSin<Fixed16>(x2);
-    requireSin<Fixed16>(x3);
-    requireSin<Fixed16>(x4);
-    requireSin<Fixed16>(x5);
-    requireCos<Fixed16>(x1);
-    requireCos<Fixed16>(x2);
-    requireCos<Fixed16>(x3);
-    requireCos<Fixed16>(x4);
-    requireCos<Fixed16>(x5);
-    requireSinCos<Fixed16>(x1);
-    requireSinCos<Fixed16>(x2);
-    requireSinCos<Fixed16>(x3);
-    requireSinCos<Fixed16>(x4);
-    requireSinCos<Fixed16>(x5);
+    requireSinCordic<Fixed16>(x1);
+    requireSinCordic<Fixed16>(x2);
+    requireSinCordic<Fixed16>(x3);
+    requireSinCordic<Fixed16>(x4);
+    requireSinCordic<Fixed16>(x5);
+    requireCosCordic<Fixed16>(x1);
+    requireCosCordic<Fixed16>(x2);
+    requireCosCordic<Fixed16>(x3);
+    requireCosCordic<Fixed16>(x4);
+    requireCosCordic<Fixed16>(x5);
+    requireSinCosCordic<Fixed16>(x1);
+    requireSinCosCordic<Fixed16>(x2);
+    requireSinCosCordic<Fixed16>(x3);
+    requireSinCosCordic<Fixed16>(x4);
+    requireSinCosCordic<Fixed16>(x5);
 
-    requireSin<FixedI>(x1);
-    requireSin<FixedI>(x2);
-    requireSin<FixedI>(x3);
-    requireSin<FixedI>(x4);
-    requireSin<FixedI>(x5);
-    requireCos<FixedI>(x1);
-    requireCos<FixedI>(x2);
-    requireCos<FixedI>(x3);
-    requireCos<FixedI>(x4);
-    requireCos<FixedI>(x5);
-    requireSinCos<FixedI>(x1);
-    requireSinCos<FixedI>(x2);
-    requireSinCos<FixedI>(x3);
-    requireSinCos<FixedI>(x4);
-    requireSinCos<FixedI>(x5);
+    requireSinCordic<FixedI>(x1);
+    requireSinCordic<FixedI>(x2);
+    requireSinCordic<FixedI>(x3);
+    requireSinCordic<FixedI>(x4);
+    requireSinCordic<FixedI>(x5);
+    requireCosCordic<FixedI>(x1);
+    requireCosCordic<FixedI>(x2);
+    requireCosCordic<FixedI>(x3);
+    requireCosCordic<FixedI>(x4);
+    requireCosCordic<FixedI>(x5);
+    requireSinCosCordic<FixedI>(x1);
+    requireSinCosCordic<FixedI>(x2);
+    requireSinCosCordic<FixedI>(x3);
+    requireSinCosCordic<FixedI>(x4);
+    requireSinCosCordic<FixedI>(x5);
 
-    requireSin<FixedF>(x1);
-    requireSin<FixedF>(x2);
-    requireSin<FixedF>(x6);
-    requireSin<FixedF>(x7);
-    requireSin<FixedF>(x8);
-    requireCos<FixedF>(x1);
-    requireCos<FixedF>(x2);
-    requireCos<FixedF>(x6);
-    requireCos<FixedF>(x7);
-    requireCos<FixedF>(x8);
-    requireSinCos<FixedF>(x1);
-    requireSinCos<FixedF>(x2);
-    requireSinCos<FixedF>(x6);
-    requireSinCos<FixedF>(x7);
-    requireSinCos<FixedF>(x8);
+    requireSinCordic<FixedF>(x1);
+    requireSinCordic<FixedF>(x2);
+    requireSinCordic<FixedF>(x6);
+    requireSinCordic<FixedF>(x7);
+    requireSinCordic<FixedF>(x8);
+    requireCosCordic<FixedF>(x1);
+    requireCosCordic<FixedF>(x2);
+    requireCosCordic<FixedF>(x6);
+    requireCosCordic<FixedF>(x7);
+    requireCosCordic<FixedF>(x8);
+    requireSinCosCordic<FixedF>(x1);
+    requireSinCosCordic<FixedF>(x2);
+    requireSinCosCordic<FixedF>(x6);
+    requireSinCosCordic<FixedF>(x7);
+    requireSinCosCordic<FixedF>(x8);
 }
 
 TEST_CASE("Fixed type specializations and mixed operators")
@@ -988,4 +990,367 @@ TEST_CASE("Fixed integerSqrt matches sqrt and floor(sqrt(raw<<P))")
     exerciseFixedSqrtComprehensive<Fixed16>();
     exerciseFixedSqrtComprehensive<FixedF>();
     exerciseFixedSqrtComprehensive<FixedI>();
+}
+
+namespace
+{
+
+constexpr double TWO_PI_D = 6.283185307179586476925286766559;
+constexpr double Q30_ONE = 1073741824.0;
+constexpr std::int32_t Q30_ONE_RAW = 1 << 30;
+constexpr std::uint32_t QUARTER_TURN = 0x40000000u;
+constexpr std::uint32_t HALF_TURN = 0x80000000u;
+
+// Error of sinTurns against double sine, in Q30 LSB.
+[[nodiscard]]
+double sinTurnsErrorLsb(std::uint32_t turns)
+{
+    const double truth = std::sin(TWO_PI_D * static_cast<double>(turns) / 4294967296.0) * Q30_ONE;
+    return std::fabs(static_cast<double>(sinTurns(turns).getRawValue()) - truth);
+}
+
+// Error of Fixed::sin (radians) against double sine of the exact input, in Q30 LSB.
+template <typename FixedType>
+[[nodiscard]]
+double sinRadiansErrorLsb(FixedType value)
+{
+    const double radians =
+        static_cast<double>(value.getRawValue()) / static_cast<double>(std::uint64_t{1} << FixedType::PRECISION);
+    const double truth = std::sin(radians) * Q30_ONE;
+    return std::fabs(static_cast<double>(value.sin().getRawValue()) - truth);
+}
+
+template <typename FixedType>
+void exerciseSinRadians(int sample_count)
+{
+    using Rep = typename FixedType::rep;
+    static_assert(std::is_same_v<decltype(std::declval<FixedType>().sin()), FixedN>);
+
+    std::mt19937 rng{static_cast<std::uint32_t>(0x51BEu + FixedType::PRECISION + sizeof(Rep))};
+    std::uniform_int_distribution<std::int64_t> dist{
+        static_cast<std::int64_t>(std::numeric_limits<Rep>::min()),
+        static_cast<std::int64_t>(std::numeric_limits<Rep>::max())};
+
+    double worst = 0.0;
+    for (int i = 0; i < sample_count; ++i)
+    {
+        const FixedType value = FixedType::fromRaw(static_cast<Rep>(dist(rng)));
+        const FixedN result = value.sin();
+        REQUIRE(result.getRawValue() <= Q30_ONE_RAW);
+        REQUIRE(result.getRawValue() >= -Q30_ONE_RAW);
+        worst = std::max(worst, sinRadiansErrorLsb(value));
+    }
+    REQUIRE(worst < 2.0);
+
+    // Fixed points of the radian path.
+    REQUIRE(FixedType{}.sin().getRawValue() == 0);
+    REQUIRE((-FixedType::getEpsilon()).sin().getRawValue() == -FixedType::getEpsilon().sin().getRawValue());
+}
+
+// Error of cosTurns against double cosine, in Q30 LSB.
+[[nodiscard]]
+double cosTurnsErrorLsb(std::uint32_t turns)
+{
+    const double truth = std::cos(TWO_PI_D * static_cast<double>(turns) / 4294967296.0) * Q30_ONE;
+    return std::fabs(static_cast<double>(cosTurns(turns).getRawValue()) - truth);
+}
+
+// Error of Fixed::cos (radians) against double cosine of the exact input, in Q30 LSB.
+template <typename FixedType>
+[[nodiscard]]
+double cosRadiansErrorLsb(FixedType value)
+{
+    const double radians =
+        static_cast<double>(value.getRawValue()) / static_cast<double>(std::uint64_t{1} << FixedType::PRECISION);
+    const double truth = std::cos(radians) * Q30_ONE;
+    return std::fabs(static_cast<double>(value.cos().getRawValue()) - truth);
+}
+
+template <typename FixedType>
+void exerciseCosRadians(int sample_count)
+{
+    using Rep = typename FixedType::rep;
+    static_assert(std::is_same_v<decltype(std::declval<FixedType>().cos()), FixedN>);
+
+    std::mt19937 rng{static_cast<std::uint32_t>(0xC053u + FixedType::PRECISION + sizeof(Rep))};
+    std::uniform_int_distribution<std::int64_t> dist{
+        static_cast<std::int64_t>(std::numeric_limits<Rep>::min()),
+        static_cast<std::int64_t>(std::numeric_limits<Rep>::max())};
+
+    double worst = 0.0;
+    for (int i = 0; i < sample_count; ++i)
+    {
+        const FixedType value = FixedType::fromRaw(static_cast<Rep>(dist(rng)));
+        const FixedN result = value.cos();
+        REQUIRE(result.getRawValue() <= Q30_ONE_RAW);
+        REQUIRE(result.getRawValue() >= -Q30_ONE_RAW);
+        worst = std::max(worst, cosRadiansErrorLsb(value));
+
+        FixedN sin_result;
+        FixedN cos_result;
+        value.sinCos(sin_result, cos_result);
+        REQUIRE(sin_result.getRawValue() == value.sin().getRawValue());
+        REQUIRE(cos_result.getRawValue() == result.getRawValue());
+    }
+    REQUIRE(worst < 2.0);
+
+    REQUIRE(FixedType{}.cos().getRawValue() == Q30_ONE_RAW);
+    REQUIRE((-FixedType::getEpsilon()).cos().getRawValue() == FixedType::getEpsilon().cos().getRawValue());
+}
+
+// Largest float magnitude the Fixed(float) constructor can store.
+// The raw maximum does not always survive a round trip through float.
+template <typename FixedType>
+[[nodiscard]]
+float constructibleFloatMagnitude()
+{
+    using Rep = typename FixedType::rep;
+    const float scale = static_cast<float>(std::uint64_t{1} << FixedType::PRECISION);
+    const float overflow = static_cast<float>(std::numeric_limits<Rep>::max()) / scale;
+    return std::nextafter(overflow, 0.0f);
+}
+
+// Random in-range floats, constructed with Fixed{x}, compared with std::sin and std::cos.
+// Storing x moves it by less than one input step, and the Q2.30 result then rounds to float.
+template <typename FixedType>
+void exerciseFloatTrig(int sample_count)
+{
+    const float magnitude = constructibleFloatMagnitude<FixedType>();
+    std::mt19937 rng{static_cast<std::uint32_t>(0xF10A7u + FixedType::PRECISION + sizeof(typename FixedType::rep))};
+    std::uniform_real_distribution<float> values{-magnitude, magnitude};
+
+    const double tolerance = static_cast<double>(FixedType::getEpsilon().getFloat())
+        + std::ldexp(1.0, -23)
+        + (2.0 / Q30_ONE);
+
+    for (int i = 0; i < sample_count; ++i)
+    {
+        const float x = values(rng);
+        const FixedType angle{x};
+        const double sine = std::sin(static_cast<double>(x));
+        const double cosine = std::cos(static_cast<double>(x));
+
+        REQUIRE(std::fabs(static_cast<double>(angle.sin().getFloat()) - sine) < tolerance);
+        REQUIRE(std::fabs(static_cast<double>(angle.cos().getFloat()) - cosine) < tolerance);
+
+        FixedN sin_result;
+        FixedN cos_result;
+        angle.sinCos(sin_result, cos_result);
+        REQUIRE(std::fabs(static_cast<double>(sin_result.getFloat()) - sine) < tolerance);
+        REQUIRE(std::fabs(static_cast<double>(cos_result.getFloat()) - cosine) < tolerance);
+    }
+}
+
+} // namespace
+
+TEST_CASE("FixedN alias is Q2.30 and holds -1 and +1 exactly")
+{
+    static_assert(std::is_same_v<FixedN, Fixed<30>>);
+    static_assert(FixedN::PRECISION == 30);
+    static_assert(FixedN::getIntegralBits() == 2);
+
+    const FixedN one{std::int32_t{1}};
+    const FixedN minus_one{std::int32_t{-1}};
+    REQUIRE(one.getRawValue() == Q30_ONE_RAW);
+    REQUIRE(minus_one.getRawValue() == -Q30_ONE_RAW);
+    REQUIRE(one.getFloat() == 1.0f);
+    REQUIRE(minus_one.getFloat() == -1.0f);
+    REQUIRE((one * minus_one).getRawValue() == -Q30_ONE_RAW);
+    REQUIRE(FixedN::getMaxValue().getRawValue() == std::numeric_limits<std::int32_t>::max());
+}
+
+TEST_CASE("sinTurns is exact at quarter turns")
+{
+    static_assert(sinTurns(0u).getRawValue() == 0);
+    static_assert(sinTurns(QUARTER_TURN).getRawValue() == Q30_ONE_RAW);
+    static_assert(sinTurns(HALF_TURN).getRawValue() == 0);
+    static_assert(sinTurns(QUARTER_TURN + HALF_TURN).getRawValue() == -Q30_ONE_RAW);
+
+    REQUIRE(sinTurns(0u).getRawValue() == 0);
+    REQUIRE(sinTurns(QUARTER_TURN).getRawValue() == Q30_ONE_RAW);
+    REQUIRE(sinTurns(HALF_TURN).getRawValue() == 0);
+    REQUIRE(sinTurns(QUARTER_TURN + HALF_TURN).getRawValue() == -Q30_ONE_RAW);
+
+    // Neighbours of the extremes stay inside [-1, +1] and are monotonic.
+    REQUIRE(sinTurns(QUARTER_TURN - 1u).getRawValue() <= Q30_ONE_RAW);
+    REQUIRE(sinTurns(QUARTER_TURN + 1u).getRawValue() <= Q30_ONE_RAW);
+    REQUIRE(sinTurns(QUARTER_TURN - 1u).getRawValue() == sinTurns(QUARTER_TURN + 1u).getRawValue());
+    REQUIRE(sinTurns(1u).getRawValue() == -sinTurns(0u - 1u).getRawValue());
+}
+
+TEST_CASE("sinTurns symmetries hold as integer identities")
+{
+    std::mt19937 rng{0x7A5Eu};
+    std::uniform_int_distribution<std::uint32_t> dist{0u, std::numeric_limits<std::uint32_t>::max()};
+
+    for (int i = 0; i < 4096; ++i)
+    {
+        const std::uint32_t t = dist(rng);
+        const std::int32_t s = sinTurns(t).getRawValue();
+        REQUIRE(sinTurns(0u - t).getRawValue() == -s);
+        REQUIRE(sinTurns(t + HALF_TURN).getRawValue() == -s);
+        REQUIRE(sinTurns(HALF_TURN - t).getRawValue() == s);
+        REQUIRE(s <= Q30_ONE_RAW);
+        REQUIRE(s >= -Q30_ONE_RAW);
+    }
+}
+
+TEST_CASE("sinTurns is accurate to about one Q30 LSB")
+{
+    std::mt19937 rng{0xACC0u};
+    std::uniform_int_distribution<std::uint32_t> dist{0u, std::numeric_limits<std::uint32_t>::max()};
+
+    double worst = 0.0;
+    for (int i = 0; i < 200000; ++i)
+    {
+        worst = std::max(worst, sinTurnsErrorLsb(dist(rng)));
+    }
+
+    // Bin edges in every quadrant: node k is at k << 22 within the quadrant.
+    for (std::uint32_t quadrant = 0; quadrant < 4u; ++quadrant)
+    {
+        for (std::uint32_t k = 0; k <= 256u; ++k)
+        {
+            const std::uint32_t base = (quadrant << 30) + (k << 22);
+            for (std::uint32_t offset : {0u, 1u, 2u, 0x200000u, 0x3FFFFFu, 0xFFFFFFFFu, 0xFFFFFFFEu})
+            {
+                worst = std::max(worst, sinTurnsErrorLsb(base + offset));
+            }
+        }
+    }
+
+    REQUIRE(worst < 1.25);
+}
+
+TEST_CASE("Fixed::sin in radians returns FixedN within two Q30 LSB")
+{
+    exerciseSinRadians<Fixed16>(50000);
+    exerciseSinRadians<FixedF>(50000);
+    exerciseSinRadians<FixedI>(50000);
+    exerciseSinRadians<FixedN>(50000);
+    exerciseSinRadians<Fixed<8, std::int16_t>>(65536);
+
+    // Spot values against double sine of the exact Fixed16 input.
+    for (float x : {0.0f, 0.5f, 1.0f, -1.0f, 3.0f, -4.79f, 25.99f, 102.583f, -900.2f})
+    {
+        const Fixed16 value{x};
+        const double lut = value.sin().getFloat();
+        REQUIRE(std::fabs(lut - std::sin(static_cast<double>(value.getFloat()))) < 1e-6);
+    }
+}
+
+TEST_CASE("sinTurns is accurate for every turn in the first quadrant", "[.exhaustive]")
+{
+    double worst = 0.0;
+    for (std::uint64_t t = 0; t <= QUARTER_TURN; ++t)
+    {
+        const auto turns = static_cast<std::uint32_t>(t);
+        const double err = sinTurnsErrorLsb(turns);
+        if (err > worst)
+        {
+            worst = err;
+        }
+        if (err >= 1.25)
+        {
+            FAIL("sinTurns error " << err << " LSB at turns=" << turns);
+        }
+        if (cosTurns(turns).getRawValue() != sinTurns(turns + QUARTER_TURN).getRawValue())
+        {
+            FAIL("cosTurns differs from sinTurns shifted by a quarter turn at turns=" << turns);
+        }
+    }
+    SUCCEED("All first-quadrant turns tested; worst sine error " << worst << " LSB");
+}
+
+TEST_CASE("cosTurns is exact at quarter turns")
+{
+    static_assert(cosTurns(0u).getRawValue() == Q30_ONE_RAW);
+    static_assert(cosTurns(QUARTER_TURN).getRawValue() == 0);
+    static_assert(cosTurns(HALF_TURN).getRawValue() == -Q30_ONE_RAW);
+    static_assert(cosTurns(QUARTER_TURN + HALF_TURN).getRawValue() == 0);
+
+    REQUIRE(cosTurns(0u).getRawValue() == Q30_ONE_RAW);
+    REQUIRE(cosTurns(QUARTER_TURN).getRawValue() == 0);
+    REQUIRE(cosTurns(HALF_TURN).getRawValue() == -Q30_ONE_RAW);
+    REQUIRE(cosTurns(QUARTER_TURN + HALF_TURN).getRawValue() == 0);
+}
+
+TEST_CASE("cosTurns and sinCosTurns match sine by integer identities")
+{
+    std::mt19937 rng{0xC051u};
+    std::uniform_int_distribution<std::uint32_t> dist{0u, std::numeric_limits<std::uint32_t>::max()};
+
+    for (int i = 0; i < 4096; ++i)
+    {
+        const std::uint32_t t = dist(rng);
+        const std::int32_t c = cosTurns(t).getRawValue();
+        REQUIRE(c == sinTurns(t + QUARTER_TURN).getRawValue());
+        REQUIRE(cosTurns(0u - t).getRawValue() == c);
+        REQUIRE(cosTurns(t + HALF_TURN).getRawValue() == -c);
+        REQUIRE(c <= Q30_ONE_RAW);
+        REQUIRE(c >= -Q30_ONE_RAW);
+
+        FixedN sin_result;
+        FixedN cos_result;
+        sinCosTurns(t, sin_result, cos_result);
+        REQUIRE(sin_result.getRawValue() == sinTurns(t).getRawValue());
+        REQUIRE(cos_result.getRawValue() == c);
+
+        const auto s = static_cast<std::int64_t>(sin_result.getRawValue());
+        const auto cosine = static_cast<std::int64_t>(cos_result.getRawValue());
+        const std::int64_t sum_of_squares = ((s * s) >> 30) + ((cosine * cosine) >> 30);
+        const std::int64_t delta = sum_of_squares - Q30_ONE_RAW;
+        REQUIRE((delta < 0 ? -delta : delta) <= 4);
+    }
+}
+
+TEST_CASE("cosTurns is accurate to about one Q30 LSB")
+{
+    std::mt19937 rng{0xC0ACu};
+    std::uniform_int_distribution<std::uint32_t> dist{0u, std::numeric_limits<std::uint32_t>::max()};
+
+    double worst = 0.0;
+    for (int i = 0; i < 200000; ++i)
+    {
+        worst = std::max(worst, cosTurnsErrorLsb(dist(rng)));
+    }
+
+    for (std::uint32_t quadrant = 0; quadrant < 4u; ++quadrant)
+    {
+        for (std::uint32_t k = 0; k <= 256u; ++k)
+        {
+            const std::uint32_t base = (quadrant << 30) + (k << 22);
+            for (std::uint32_t offset : {0u, 1u, 2u, 0x200000u, 0x3FFFFFu, 0xFFFFFFFFu, 0xFFFFFFFEu})
+            {
+                worst = std::max(worst, cosTurnsErrorLsb(base + offset));
+            }
+        }
+    }
+
+    REQUIRE(worst < 1.25);
+}
+
+TEST_CASE("Fixed::cos and sinCos in radians return FixedN within two Q30 LSB")
+{
+    exerciseCosRadians<Fixed16>(50000);
+    exerciseCosRadians<FixedF>(50000);
+    exerciseCosRadians<FixedI>(50000);
+    exerciseCosRadians<FixedN>(50000);
+    exerciseCosRadians<Fixed<8, std::int16_t>>(65536);
+
+    for (float x : {0.0f, 0.5f, 1.0f, -1.0f, 3.0f, -4.79f, 25.99f, 102.583f, -900.2f})
+    {
+        const Fixed16 value{x};
+        const double lut = value.cos().getFloat();
+        REQUIRE(std::fabs(lut - std::cos(static_cast<double>(value.getFloat()))) < 1e-6);
+    }
+}
+
+TEST_CASE("Fixed sin, cos, and sinCos match std::sin and std::cos for random in-range floats")
+{
+    exerciseFloatTrig<Fixed16>(10000);
+    exerciseFloatTrig<FixedF>(10000);
+    exerciseFloatTrig<FixedI>(10000);
+    exerciseFloatTrig<FixedN>(10000);
+    exerciseFloatTrig<Fixed<8, std::int16_t>>(10000);
 }

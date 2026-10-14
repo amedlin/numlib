@@ -13,6 +13,8 @@ Include `fixedpt/fixed_types.h` to use these aliases:
 - `FixedF` is `Fixed<24>`, a Q8.24 fixed-point number.
 - `Fixed16` is `Fixed<16>`, a Q16.16 fixed-point number.
 - `FixedI` is `Fixed<8>`, a Q24.8 fixed-point number.
+- `FixedN` is `Fixed<30>`, a Q2.30 normalized number that holds `[-1, +1]`
+  with both end points exact. `sin()` returns this type.
 
 ```cpp
 #include "fixedpt/fixed_types.h"
@@ -52,7 +54,10 @@ The fixed-point API supports:
   (`Fixed<P, int32_t>::sqrt` uses a specialized LUT path via `integerSqrt`;
   see [integer-square-root.md](integer-square-root.md));
 - `round`, `floor`, `ceil`, and power-of-two scaling;
-- `sin`, `cos`, and combined `sinCos`;
+- `sin`, `cos`, and `sinCos` (table-driven, return `FixedN`; see
+  [fixed-sine.md](fixed-sine.md)) and the free functions `sinTurns`,
+  `cosTurns`, and `sinCosTurns` for angles in turns;
+- CORDIC `sinCordic`, `cosCordic`, and `sinCosCordic`;
 - conversion to and from raw signed integer representations.
 
 `fixedpt/fixed_types.h` also declares `expApprox` for Q16.16 values.
