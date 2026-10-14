@@ -54,9 +54,10 @@ The fixed-point API supports:
   (`Fixed<P, int32_t>::sqrt` uses a specialized LUT path via `integerSqrt`;
   see [integer-square-root.md](integer-square-root.md));
 - `round`, `floor`, `ceil`, and power-of-two scaling;
-- `sin` (table-driven, returns `FixedN`; see [fixed-sine.md](fixed-sine.md))
-  and the free function `sinTurns` for angles in turns;
-- CORDIC `sinCordic`, `cos`, and combined `sinCos`;
+- `sin`, `cos`, and `sinCos` (table-driven, return `FixedN`; see
+  [fixed-sine.md](fixed-sine.md)) and the free functions `sinTurns`,
+  `cosTurns`, and `sinCosTurns` for angles in turns;
+- CORDIC `sinCordic`, `cosCordic`, and `sinCosCordic`;
 - conversion to and from raw signed integer representations.
 
 `fixedpt/fixed_types.h` also declares `expApprox` for Q16.16 values.

@@ -3,13 +3,14 @@
 #include <array>
 #include <cstdint>
 
-// Table-driven sine on a binary phase.
+// Table-driven sine and cosine on a binary phase.
 //
 // The angle is a "phase": an unsigned 64-bit fraction of one turn (Q0.64
 // turns). Whole turns vanish in the 64-bit wrap, so range reduction is
 // free. The top two bits select the quadrant, the next 8 bits select a
 // table node, and the remaining bits are the offset inside the bin. A
-// cubic Taylor step from the node gives the result in Q2.30.
+// cubic Taylor step from the node gives the sine in Q2.30. Cosine is the
+// same polynomial at the mirrored angle (a quarter turn ahead).
 //
 // Table size: 257 nodes x 16 bytes = 4112 bytes. Max error: 0.80 LSB (Q30).
 // sin(0), sin(pi/2) = +1, sin(pi) = 0, and sin(3pi/2) = -1 are exact.
@@ -124,23 +125,11 @@ inline constexpr std::uint64_t INV_TWO_PI_Q64 = 0x28BE60DB9391054Aull;
 template <int P>
 inline constexpr std::uint64_t PHASE_SCALE = (INV_TWO_PI_Q64 + (std::uint64_t{1} << (P - 1))) >> P;
 
-// sin(2 pi * phase / 2^64) in Q2.30.
+// Polynomial at an in-quadrant position, as a non-negative Q2.30 magnitude.
+// pos == 2^63 is node 256 and returns exactly 2^30.
 [[nodiscard]]
-constexpr std::int32_t sinPhaseQ30(std::uint64_t phase) noexcept
+constexpr std::int32_t evalSinMagnitude(std::uint64_t pos) noexcept
 {
-    //
-    // Quadrant in the top two bits. The rest, shifted up by one, is the
-    // 63-bit offset into the quadrant: 0 <= r < 2^63.
-    //
-    const unsigned quadrant = static_cast<unsigned>(phase >> 62);
-    const std::uint64_t r = (phase << 2) >> 1;
-
-    //
-    // Odd quadrants run backwards: sin(pi - x) = sin(x). The mirror
-    // 2^63 - r maps the quarter turn to node 256, so +1 is exact.
-    //
-    const std::uint64_t pos = (quadrant & 1u) != 0u ? (std::uint64_t{1} << 63) - r : r;
-
     //
     // Node index (0..256) and Q32 fraction inside the bin.
     //
@@ -158,11 +147,49 @@ constexpr std::int32_t sinPhaseQ30(std::uint64_t phase) noexcept
     acc = static_cast<std::int64_t>(node.t1_) - ((acc * u) >> 40);
     const std::int64_t q31 = static_cast<std::int64_t>(node.s_) + ((acc * u) >> 39);
 
+    return static_cast<std::int32_t>((q31 + 1) >> 1);
+}
+
+// sin(2 pi * phase / 2^64) in Q2.30.
+[[nodiscard]]
+constexpr std::int32_t sinPhaseQ30(std::uint64_t phase) noexcept
+{
     //
-    // Round Q31 to Q30, then apply the sign of the half turn.
+    // Quadrant in the top two bits. The rest, shifted up by one, is the
+    // 63-bit offset into the quadrant: 0 <= r < 2^63.
     //
-    const auto magnitude = static_cast<std::int32_t>((q31 + 1) >> 1);
+    const unsigned quadrant = static_cast<unsigned>(phase >> 62);
+    const std::uint64_t r = (phase << 2) >> 1;
+
+    //
+    // Odd quadrants run backwards: sin(pi - x) = sin(x). The mirror
+    // 2^63 - r maps the quarter turn to node 256, so +1 is exact.
+    //
+    const std::uint64_t pos = (quadrant & 1u) != 0u ? (std::uint64_t{1} << 63) - r : r;
+    const std::int32_t magnitude = evalSinMagnitude(pos);
+
+    // Sign of the half turn.
     return (quadrant & 2u) != 0u ? -magnitude : magnitude;
+}
+
+// Sine and cosine of the same phase, both in Q2.30.
+//
+// Adding a quarter turn (1 << 62) increments the quadrant and leaves r
+// unchanged, so cosine is the polynomial at the mirror of the sine position.
+// The two evaluations do not depend on each other.
+constexpr void sinCosPhaseQ30(std::uint64_t phase, std::int32_t& sin_q30, std::int32_t& cos_q30) noexcept
+{
+    const unsigned quadrant = static_cast<unsigned>(phase >> 62);
+    const std::uint64_t r = (phase << 2) >> 1;
+    const std::int32_t at_r = evalSinMagnitude(r);
+    const std::int32_t at_mirror = evalSinMagnitude((std::uint64_t{1} << 63) - r);
+
+    const std::int32_t sin_magnitude = (quadrant & 1u) != 0u ? at_mirror : at_r;
+    const std::int32_t cos_magnitude = (quadrant & 1u) != 0u ? at_r : at_mirror;
+
+    // Sine signs by quadrant: + + - -. Cosine signs: + - - +.
+    sin_q30 = (quadrant & 2u) != 0u ? -sin_magnitude : sin_magnitude;
+    cos_q30 = ((quadrant + 1u) & 2u) != 0u ? -cos_magnitude : cos_magnitude;
 }
 
 } // namespace detail

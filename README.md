@@ -18,15 +18,16 @@ remainder.
   Q2.30 (`FixedN`) aliases
 - Conversion, mixed-precision multiplication and division, square root,
   inverse square root, rounding, sine, cosine, and exponential approximation
-- Table-driven integer sine (`sin()` returns `FixedN`, exact at +-1, under
-  one Q30 LSB error, about 3 ns per call) plus `sinTurns` for angles in turns
+- Table-driven integer sine and cosine (`sin()`, `cos()`, and `sinCos()`
+  return `FixedN`, exact at +-1, under one Q30 LSB error) plus `sinTurns`,
+  `cosTurns`, and `sinCosTurns` for angles in turns
 - Exact `floor(sqrt(n))` for 32-bit signed integers, with remainder
 - `constexpr` support for core fixed-point operations
 - CMake targets for subdirectory and installed-package use
 - Tested with MSVC, Clang, and GCC; enables AVX2 on x86/x64 when the compiler supports it (skipped on ARM)
 
 Read the focused guides for [fixed-point arithmetic](docs/fixed-point.md),
-[fast fixed-point sine](docs/fixed-sine.md),
+[fast fixed-point sine and cosine](docs/fixed-sine.md),
 [integer square root](docs/integer-square-root.md), and
 [performance](docs/perf.md).
 

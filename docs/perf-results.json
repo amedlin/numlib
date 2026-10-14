@@ -5,7 +5,7 @@
     "timed_runs": 200,
     "os": "Windows",
     "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
-    "captured_at": "2026-10-14T11:02:39Z",
+    "captured_at": "2026-10-14T11:34:00Z",
     "note": "Bare-metal baseline; Release perf writes this file"
   },
   "benchmarks": [
@@ -23,14 +23,14 @@
     },
     {
       "name": "detail::constexprSqrt",
-      "batch_ns": 52700,
-      "per_call_ns": 52.700000000000003,
+      "batch_ns": 52000,
+      "per_call_ns": 52,
       "sink": 30804578
     },
     {
       "name": "integerSqrt uint64",
-      "batch_ns": 19400,
-      "per_call_ns": 19.399999999999999,
+      "batch_ns": 19100,
+      "per_call_ns": 19.100000000000001,
       "sink": 2860856151055
     },
     {
@@ -41,8 +41,8 @@
     },
     {
       "name": "Fixed16 add",
-      "batch_ns": 300,
-      "per_call_ns": 0.29999999999999999,
+      "batch_ns": 400,
+      "per_call_ns": 0.40000000000000002,
       "sink": 41970992
     },
     {
@@ -65,8 +65,8 @@
     },
     {
       "name": "Fixed16 div",
-      "batch_ns": 5300,
-      "per_call_ns": 5.2999999999999998,
+      "batch_ns": 5200,
+      "per_call_ns": 5.2000000000000002,
       "sink": 6646315
     },
     {
@@ -101,14 +101,14 @@
     },
     {
       "name": "Fixed16 sin (CORDIC)",
-      "batch_ns": 89800,
-      "per_call_ns": 89.799999999999997,
+      "batch_ns": 87700,
+      "per_call_ns": 87.700000000000003,
       "sink": 527084
     },
     {
       "name": "Fixed16 sin (LUT, FixedN result)",
-      "batch_ns": 3100,
-      "per_call_ns": 3.1000000000000001,
+      "batch_ns": 3000,
+      "per_call_ns": 3,
       "sink": 8636798976
     },
     {
@@ -116,6 +116,30 @@
       "batch_ns": 2700,
       "per_call_ns": 2.7000000000000002,
       "sink": -51217096704
+    },
+    {
+      "name": "float cos",
+      "batch_ns": 5200,
+      "per_call_ns": 5.2000000000000002,
+      "sink": 150.43995666503906
+    },
+    {
+      "name": "Fixed16 cos (LUT, FixedN result)",
+      "batch_ns": 3100,
+      "per_call_ns": 3.1000000000000001,
+      "sink": 161534984192
+    },
+    {
+      "name": "Fixed16 sinCos (LUT, FixedN result)",
+      "batch_ns": 4800,
+      "per_call_ns": 4.7999999999999998,
+      "sink": 170171793408
+    },
+    {
+      "name": "cosTurns (LUT, FixedN result)",
+      "batch_ns": 2800,
+      "per_call_ns": 2.7999999999999998,
+      "sink": -9321811968
     },
     {
       "name": "Fixed16 sinViaFloat",

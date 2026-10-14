@@ -1,25 +1,31 @@
-# Fast fixed-point sine
+# Fast fixed-point sine and cosine
 
-`Fixed<P, Rep>::sin()` is a table-driven, integer-only sine for 16-bit and
-32-bit representations. It returns `FixedN` (`Fixed<30>`, Q2.30), so the
-result holds `-1` and `+1` exactly. It does not use floating point, division,
-or `fmod`, and it is `constexpr`.
+`Fixed<P, Rep>::sin()`, `cos()`, and `sinCos()` are table-driven, integer-only
+functions for 16-bit and 32-bit representations. Each result is `FixedN`
+(`Fixed<30>`, Q2.30), so it holds `-1` and `+1` exactly. They do not use
+floating point, division, or `fmod`, and they are `constexpr`.
 
 ```cpp
 #include "fixedpt/fixed_types.h"
 
 const Fixed16 angle{1.5707963f};     // radians
 const FixedN s = angle.sin();        // ~1.0 in Q2.30
+const FixedN c = angle.cos();        // ~0.0 in Q2.30
+
+FixedN sin_result;
+FixedN cos_result;
+angle.sinCos(sin_result, cos_result);
 
 const FixedN quarter = sinTurns(0x40000000u); // exactly 1.0
+const FixedN zero = cosTurns(0x40000000u);    // exactly 0.0
 ```
 
-The previous CORDIC implementation is still available as `sinCordic()` and
-returns the input type.
+The previous CORDIC implementation is still available as `sinCordic()`,
+`cosCordic()`, and `sinCosCordic()`. Those return the input type.
 
 ## Why Q2.30 (`FixedN`)
 
-A sine result is always inside `[-1, +1]`. A Q1.31 format cannot hold `+1`
+A sine or cosine result is always inside `[-1, +1]`. A Q1.31 format cannot hold `+1`
 (its range is `[-1, 1)`), so Q2.30 is used. One bit of range is spent so that
 both end points are exact; the remaining 30 fractional bits give a resolution
 of about `9.3e-10`.
@@ -47,8 +53,8 @@ negates the result. The mirror maps a full quarter turn to node 256, so
 
 ### Radians
 
-`Fixed<P, Rep>::sin()` converts the raw Q(P) radian value to a phase with one
-wrapping 64-bit multiply:
+`sin()`, `cos()`, and `sinCos()` convert the raw Q(P) radian value to a phase
+with one wrapping 64-bit multiply:
 
 ```text
 phase = uint64(int64(raw)) * PHASE_SCALE<P>
@@ -67,6 +73,35 @@ exact at every quarter turn. These identities hold on the raw results:
 sinTurns(-t)        == -sinTurns(t)
 sinTurns(t + half)  == -sinTurns(t)
 sinTurns(half - t)  ==  sinTurns(t)
+```
+
+`cosTurns` and `sinCosTurns` take the same Q0.32 turn count.
+
+## Cosine
+
+Cosine is sine one quarter turn later. In Q0.64 that is an add of `2^62`,
+which increments the quadrant and leaves the in-quadrant offset `r` unchanged.
+`cos()` and `cosTurns()` call the sine polynomial on that shifted phase.
+
+`sinCos()` and `sinCosTurns()` reduce the phase once, then evaluate the
+polynomial at `r` and at its mirror `2^63 - r`. Those two chains do not depend
+on each other.
+
+| Quadrant | Sine position | Cosine position | Sine sign | Cosine sign |
+| --- | --- | --- | --- | --- |
+| 0 | `r` | mirror of `r` | + | + |
+| 1 | mirror of `r` | `r` | + | - |
+| 2 | `r` | mirror of `r` | - | - |
+| 3 | mirror of `r` | `r` | - | + |
+
+`r == 0` mirrors to node 256, so `cos(0) = +1`, `cos(pi) = -1`, and
+`sin(pi/2) = +1` stay exact. The same identities hold for the turn functions:
+
+```text
+cosTurns(t)             ==  sinTurns(t + quarter)
+cosTurns(-t)            ==  cosTurns(t)
+cosTurns(t + half)      == -cosTurns(t)
+sinCosTurns(t)          ==  (sinTurns(t), cosTurns(t))
 ```
 
 ## Table
@@ -100,11 +135,12 @@ Taylor series. Together with the square-root tables the lookup tables total
   (exhaustive, `2^30` inputs): **0.80 Q30 LSB**. The other quadrants are exact
   mirrors.
 - Measured maximum error of `Fixed16::sin()` over random full-range inputs:
-  **0.80 Q30 LSB**.
+  **0.80 Q30 LSB**. Cosine uses the same polynomial, so it has the same bound.
 - The result never leaves `[-2^30, +2^30]`.
 
 ## Performance
 
-The hot path is one 64-bit multiply (radians only), one 16-byte load, and
-three dependent 64-bit multiplies. See [perf.md](perf.md) for timings against
+Sine or cosine in radians is one 64-bit multiply, one 16-byte load, and three
+dependent 64-bit multiplies. `sinCos` pays the multiply once and then runs two
+independent polynomial chains. See [perf.md](perf.md) for timings against
 `std::sin` and CORDIC.

@@ -263,6 +263,20 @@ NUMLIB_NOINLINE float runFloatSinBatch(
     return sum;
 }
 
+NUMLIB_NOINLINE float runFloatCosBatch(
+    const float* values,
+    std::size_t count) noexcept
+{
+    float sum = 0.0f;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += std::cos(values[i]);
+    }
+
+    return sum;
+}
+
 NUMLIB_NOINLINE float runFixedSinBatch(
     const Fixed16* values,
     std::size_t count) noexcept
@@ -300,6 +314,52 @@ NUMLIB_NOINLINE float runSinTurnsBatch(
     for (std::size_t i = 0; i < count; ++i)
     {
         sum += sinTurns(turns[i]).getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runFixedCosLutBatch(
+    const Fixed16* values,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += values[i].cos().getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runFixedSinCosLutBatch(
+    const Fixed16* values,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        FixedN sin_result;
+        FixedN cos_result;
+        values[i].sinCos(sin_result, cos_result);
+        sum += sin_result.getRawValue();
+        sum += cos_result.getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runCosTurnsBatch(
+    const std::uint32_t* turns,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += cosTurns(turns[i]).getRawValue();
     }
 
     return static_cast<float>(sum);
@@ -847,6 +907,46 @@ int main()
         [&]
         {
             return runSinTurnsBatch(turns.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        results,
+        "float cos",
+        [&]
+        {
+            return runFloatCosBatch(float_angle.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        results,
+        "Fixed16 cos (LUT, FixedN result)",
+        [&]
+        {
+            return runFixedCosLutBatch(fixed_angle.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        results,
+        "Fixed16 sinCos (LUT, FixedN result)",
+        [&]
+        {
+            return runFixedSinCosLutBatch(fixed_angle.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        results,
+        "cosTurns (LUT, FixedN result)",
+        [&]
+        {
+            return runCosTurnsBatch(turns.data(), count);
         },
         warmup_runs,
         sample_runs,
