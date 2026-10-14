@@ -1098,6 +1098,49 @@ void exerciseCosRadians(int sample_count)
     REQUIRE((-FixedType::getEpsilon()).cos().getRawValue() == FixedType::getEpsilon().cos().getRawValue());
 }
 
+// Largest float magnitude the Fixed(float) constructor can store.
+// The raw maximum does not always survive a round trip through float.
+template <typename FixedType>
+[[nodiscard]]
+float constructibleFloatMagnitude()
+{
+    using Rep = typename FixedType::rep;
+    const float scale = static_cast<float>(std::uint64_t{1} << FixedType::PRECISION);
+    const float overflow = static_cast<float>(std::numeric_limits<Rep>::max()) / scale;
+    return std::nextafter(overflow, 0.0f);
+}
+
+// Random in-range floats, constructed with Fixed{x}, compared with std::sin and std::cos.
+// Storing x moves it by less than one input step, and the Q2.30 result then rounds to float.
+template <typename FixedType>
+void exerciseFloatTrig(int sample_count)
+{
+    const float magnitude = constructibleFloatMagnitude<FixedType>();
+    std::mt19937 rng{static_cast<std::uint32_t>(0xF10A7u + FixedType::PRECISION + sizeof(typename FixedType::rep))};
+    std::uniform_real_distribution<float> values{-magnitude, magnitude};
+
+    const double tolerance = static_cast<double>(FixedType::getEpsilon().getFloat())
+        + std::ldexp(1.0, -23)
+        + (2.0 / Q30_ONE);
+
+    for (int i = 0; i < sample_count; ++i)
+    {
+        const float x = values(rng);
+        const FixedType angle{x};
+        const double sine = std::sin(static_cast<double>(x));
+        const double cosine = std::cos(static_cast<double>(x));
+
+        REQUIRE(std::fabs(static_cast<double>(angle.sin().getFloat()) - sine) < tolerance);
+        REQUIRE(std::fabs(static_cast<double>(angle.cos().getFloat()) - cosine) < tolerance);
+
+        FixedN sin_result;
+        FixedN cos_result;
+        angle.sinCos(sin_result, cos_result);
+        REQUIRE(std::fabs(static_cast<double>(sin_result.getFloat()) - sine) < tolerance);
+        REQUIRE(std::fabs(static_cast<double>(cos_result.getFloat()) - cosine) < tolerance);
+    }
+}
+
 } // namespace
 
 TEST_CASE("FixedN alias is Q2.30 and holds -1 and +1 exactly")
@@ -1301,4 +1344,13 @@ TEST_CASE("Fixed::cos and sinCos in radians return FixedN within two Q30 LSB")
         const double lut = value.cos().getFloat();
         REQUIRE(std::fabs(lut - std::cos(static_cast<double>(value.getFloat()))) < 1e-6);
     }
+}
+
+TEST_CASE("Fixed sin, cos, and sinCos match std::sin and std::cos for random in-range floats")
+{
+    exerciseFloatTrig<Fixed16>(10000);
+    exerciseFloatTrig<FixedF>(10000);
+    exerciseFloatTrig<FixedI>(10000);
+    exerciseFloatTrig<FixedN>(10000);
+    exerciseFloatTrig<Fixed<8, std::int16_t>>(10000);
 }
