@@ -14,15 +14,19 @@ remainder.
 
 - Signed `Fixed<P, Rep>` arithmetic with compile-time fractional precision
 - 16-bit and 32-bit storage, plus 64-bit storage on compilers with `__int128`
-- Q8.24 (`FixedF`), Q16.16 (`Fixed16`), and Q24.8 (`FixedI`) aliases
+- Q8.24 (`FixedF`), Q16.16 (`Fixed16`), Q24.8 (`FixedI`), and normalized
+  Q2.30 (`FixedN`) aliases
 - Conversion, mixed-precision multiplication and division, square root,
   inverse square root, rounding, sine, cosine, and exponential approximation
+- Table-driven integer sine (`sin()` returns `FixedN`, exact at +-1, under
+  one Q30 LSB error, about 3 ns per call) plus `sinTurns` for angles in turns
 - Exact `floor(sqrt(n))` for 32-bit signed integers, with remainder
 - `constexpr` support for core fixed-point operations
 - CMake targets for subdirectory and installed-package use
 - Tested with MSVC, Clang, and GCC; enables AVX2 on x86/x64 when the compiler supports it (skipped on ARM)
 
 Read the focused guides for [fixed-point arithmetic](docs/fixed-point.md),
+[fast fixed-point sine](docs/fixed-sine.md),
 [integer square root](docs/integer-square-root.md), and
 [performance](docs/perf.md).
 

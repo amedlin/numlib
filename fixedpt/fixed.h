@@ -8,7 +8,12 @@
 #include <limits>
 #include <type_traits>
 
+#include "fixedpt/sin_lut.h"
 #include "int/isqrt.h"
+
+// All lookup tables used by the hot paths share one conservative L1 budget.
+static_assert(
+    sizeof(detail::SQRT_TABLE) + sizeof(detail::SQRT_TABLE32) + sizeof(detail::SIN_TABLE) <= 16u * 1024u);
 
 namespace detail
 {
@@ -267,8 +272,14 @@ public:
     [[nodiscard]] constexpr Fixed sqrtApprox() const noexcept;
     [[nodiscard]] constexpr Fixed invSqrtApprox() const noexcept;
 
+    // Table-driven sine of this value in radians. The result is normalized
+    // Q2.30 (FixedN) so that -1 and +1 are exact; max error is below one
+    // Q30 LSB. Available for 16-bit and 32-bit representations.
+    [[nodiscard]] constexpr Fixed<30, std::int32_t> sin() const noexcept
+        requires(sizeof(Rep) <= sizeof(std::int32_t));
+
     // Fixed-domain CORDIC trig (no float).
-    [[nodiscard]] constexpr Fixed sin() const noexcept;
+    [[nodiscard]] constexpr Fixed sinCordic() const noexcept;
     [[nodiscard]] constexpr Fixed cos() const noexcept;
     constexpr void sinCos(Fixed& sin_result, Fixed& cos_result) const noexcept;
 
@@ -790,7 +801,30 @@ constexpr Fixed<P, Rep> Fixed<P, Rep>::scaleByPowerOfTwo(int exp) const noexcept
 
 template <int P, detail::FixedRep Rep>
     requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
-constexpr Fixed<P, Rep> Fixed<P, Rep>::sin() const noexcept
+constexpr Fixed<30, std::int32_t> Fixed<P, Rep>::sin() const noexcept
+    requires(sizeof(Rep) <= sizeof(std::int32_t))
+{
+    //
+    // Radians to Q0.64 turns in one wrapping multiply: whole turns fall off
+    // the top, so no fmod is needed. Sign-extend first so negative angles
+    // wrap to the matching positive phase.
+    //
+    const auto phase = static_cast<std::uint64_t>(static_cast<std::int64_t>(x_)) * detail::PHASE_SCALE<P>;
+    return Fixed<30, std::int32_t>::fromRaw(detail::sinPhaseQ30(phase));
+}
+
+/// Sine of an angle given in turns as an unsigned Q0.32 fraction (0x40000000
+/// is a quarter turn). Exact at every quarter turn; result is Q2.30.
+[[nodiscard]]
+constexpr Fixed<30, std::int32_t> sinTurns(std::uint32_t turns_q32) noexcept
+{
+    const std::uint64_t phase = static_cast<std::uint64_t>(turns_q32) << 32;
+    return Fixed<30, std::int32_t>::fromRaw(detail::sinPhaseQ30(phase));
+}
+
+template <int P, detail::FixedRep Rep>
+    requires(P > 0 && P < static_cast<int>(sizeof(Rep) * 8))
+constexpr Fixed<P, Rep> Fixed<P, Rep>::sinCordic() const noexcept
 {
     Rep sin_raw{};
     Rep cos_raw{};

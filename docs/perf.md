@@ -8,7 +8,7 @@ about, then regenerate this page.
 
 - **CPU:** AMD Ryzen 7 3700X 8-Core Processor
 - **OS:** Windows
-- **Captured:** 2026-10-11T10:40:51Z
+- **Captured:** 2026-10-14T10:15:11Z
 - **Samples per batch:** 1000
 - **Warmup runs:** 20
 - **Timed runs (median):** 200
@@ -20,8 +20,8 @@ about, then regenerate this page.
 | --- | ---: | ---: |
 | int-to-float + std::sqrt | 1.3 | 1300.0 |
 | integerSqrt | 2.5 | 2500.0 |
-| detail::constexprSqrt | 52.7 | 52700.0 |
-| integerSqrt uint64 | 18.9 | 18900.0 |
+| detail::constexprSqrt | 52.9 | 52900.0 |
+| integerSqrt uint64 | 19.2 | 19200.0 |
 | float add | 0.7 | 700.0 |
 | Fixed16 add | 0.3 | 300.0 |
 | float mul | 0.7 | 700.0 |
@@ -31,10 +31,12 @@ about, then regenerate this page.
 | float mul-add | 0.7 | 700.0 |
 | Fixed16 mulAdd | 0.7 | 700.0 |
 | float sqrt | 1.3 | 1300.0 |
-| Fixed16 sqrt | 3.7 | 3700.0 |
-| float sin | 6.1 | 6100.0 |
-| Fixed16 sin (CORDIC) | 88.3 | 88300.0 |
-| Fixed16 sinViaFloat | 6.7 | 6700.0 |
+| Fixed16 sqrt | 3.6 | 3600.0 |
+| float sin | 5.3 | 5300.0 |
+| Fixed16 sin (CORDIC) | 90.0 | 90000.0 |
+| Fixed16 sin (LUT, FixedN result) | 3.0 | 3000.0 |
+| sinTurns (LUT, FixedN result) | 2.7 | 2700.0 |
+| Fixed16 sinViaFloat | 6.6 | 6600.0 |
 
 ## Refresh
 

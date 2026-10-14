@@ -5,7 +5,7 @@
     "timed_runs": 200,
     "os": "Windows",
     "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
-    "captured_at": "2026-10-11T10:40:51Z",
+    "captured_at": "2026-10-14T11:02:39Z",
     "note": "Bare-metal baseline; Release perf writes this file"
   },
   "benchmarks": [
@@ -29,9 +29,9 @@
     },
     {
       "name": "integerSqrt uint64",
-      "batch_ns": 18900,
-      "per_call_ns": 18.899999999999999,
-      "sink": 2877040127564
+      "batch_ns": 19400,
+      "per_call_ns": 19.399999999999999,
+      "sink": 2860856151055
     },
     {
       "name": "float add",
@@ -89,26 +89,38 @@
     },
     {
       "name": "Fixed16 sqrt",
-      "batch_ns": 3700,
-      "per_call_ns": 3.7000000000000002,
+      "batch_ns": 3600,
+      "per_call_ns": 3.6000000000000001,
       "sink": 306197600
     },
     {
       "name": "float sin",
-      "batch_ns": 6100,
-      "per_call_ns": 6.0999999999999996,
+      "batch_ns": 5300,
+      "per_call_ns": 5.2999999999999998,
       "sink": 8.0438604354858398
     },
     {
       "name": "Fixed16 sin (CORDIC)",
-      "batch_ns": 88300,
-      "per_call_ns": 88.299999999999997,
+      "batch_ns": 89800,
+      "per_call_ns": 89.799999999999997,
       "sink": 527084
     },
     {
+      "name": "Fixed16 sin (LUT, FixedN result)",
+      "batch_ns": 3100,
+      "per_call_ns": 3.1000000000000001,
+      "sink": 8636798976
+    },
+    {
+      "name": "sinTurns (LUT, FixedN result)",
+      "batch_ns": 2700,
+      "per_call_ns": 2.7000000000000002,
+      "sink": -51217096704
+    },
+    {
       "name": "Fixed16 sinViaFloat",
-      "batch_ns": 6700,
-      "per_call_ns": 6.7000000000000002,
+      "batch_ns": 6500,
+      "per_call_ns": 6.5,
       "sink": 527160
     }
   ]

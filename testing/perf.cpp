@@ -271,7 +271,35 @@ NUMLIB_NOINLINE float runFixedSinBatch(
 
     for (std::size_t i = 0; i < count; ++i)
     {
+        sum += values[i].sinCordic().getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runFixedSinLutBatch(
+    const Fixed16* values,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
         sum += values[i].sin().getRawValue();
+    }
+
+    return static_cast<float>(sum);
+}
+
+NUMLIB_NOINLINE float runSinTurnsBatch(
+    const std::uint32_t* turns,
+    std::size_t count) noexcept
+{
+    std::int64_t sum = 0;
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        sum += sinTurns(turns[i]).getRawValue();
     }
 
     return static_cast<float>(sum);
@@ -600,12 +628,14 @@ int main()
     std::vector<Fixed16> fixed_positive(static_cast<std::size_t>(sample_count));
     std::vector<Fixed16> fixed_divisor(static_cast<std::size_t>(sample_count));
     std::vector<Fixed16> fixed_angle(static_cast<std::size_t>(sample_count));
+    std::vector<std::uint32_t> turns(static_cast<std::size_t>(sample_count));
 
     for (int i = 0; i < sample_count; ++i)
     {
         const std::size_t index = static_cast<std::size_t>(i);
         values[index] = dist(rng);
         values64[index] = dist64(rng64);
+        turns[index] = static_cast<std::uint32_t>(dist64(rng64));
 
         float_a[index] = fixed_dist(rng);
         float_b[index] = fixed_dist(rng);
@@ -797,6 +827,26 @@ int main()
         [&]
         {
             return runFixedSinBatch(fixed_angle.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        results,
+        "Fixed16 sin (LUT, FixedN result)",
+        [&]
+        {
+            return runFixedSinLutBatch(fixed_angle.data(), count);
+        },
+        warmup_runs,
+        sample_runs,
+        sample_count);
+    runNamed(
+        results,
+        "sinTurns (LUT, FixedN result)",
+        [&]
+        {
+            return runSinTurnsBatch(turns.data(), count);
         },
         warmup_runs,
         sample_runs,
